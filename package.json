@@ -1,0 +1,17 @@
+{
+  "name": "log-locate",
+  "version": "1.0.0",
+  "description": "Watch log files and send email alerts on keyword matches. Zero dependencies.",
+  "main": "index.js",
+  "bin": {
+    "log-sentinel": "./bin/cli.js"
+  },
+  "scripts": {
+    "start": "node bin/cli.js"
+  },
+  "keywords": ["log", "monitor", "alert", "email", "keyword", "watcher"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
