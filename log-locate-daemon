@@ -1,0 +1,279 @@
+#!/usr/bin/env bash
+# /usr/local/bin/log-locate-daemon
+#
+# Watches a single log file, indexes matching tokens into a .idx file,
+# and sends Telegram/email alerts when ALERT_PATTERNS are matched.
+#
+# Started automatically by systemd via log-locate@.service.
+# Can also be run manually for testing:
+#   log-locate-daemon /etc/project/logs/app.log
+#
+# Index file format (tab-separated):
+#   <token>\t<lineNumber>\t<timestamp>\n
+
+set -euo pipefail
+
+# ─── Args ─────────────────────────────────────────────────────────────────────
+if [[ $# -lt 1 ]]; then
+  echo "Usage: log-locate-daemon <log-file-path>" >&2
+  exit 1
+fi
+
+LOG_FILE="$1"
+
+if [[ ! -f "$LOG_FILE" ]]; then
+  echo "[log-locate-daemon] Waiting for log file to appear: $LOG_FILE"
+  # Wait up to 60s for the file to be created (app may not have started yet)
+  for i in $(seq 1 60); do
+    sleep 1
+    [[ -f "$LOG_FILE" ]] && break
+  done
+  if [[ ! -f "$LOG_FILE" ]]; then
+    echo "[log-locate-daemon] File never appeared: $LOG_FILE" >&2
+    exit 1
+  fi
+fi
+
+# ─── Load config ──────────────────────────────────────────────────────────────
+GLOBAL_CONFIG="/etc/log-locate/config"
+FILE_CONFIG="/etc/log-locate/$(basename "$LOG_FILE").conf"
+
+# Defaults (used if config file is missing or value not set)
+PATTERNS="ERROR WARN FATAL"
+ALERT_PATTERNS="ERROR FATAL 500"
+NOTIFY="telegram"
+TELEGRAM_BOT_TOKEN=""
+TELEGRAM_CHAT_ID=""
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_USER=""
+SMTP_PASS=""
+ALERT_FROM=""
+ALERT_TO=""
+BATCH_SECONDS="10"
+COOLDOWN_SECONDS="300"
+
+# Load global config then per-file override
+[[ -f "$GLOBAL_CONFIG" ]] && source "$GLOBAL_CONFIG"
+[[ -f "$FILE_CONFIG"   ]] && source "$FILE_CONFIG"
+
+IDX_FILE="${LOG_FILE}.idx"
+BATCH_FILE="${LOG_FILE}.batch"   # temp file to collect alert lines
+LOCK_FILE="${LOG_FILE}.cooldown" # exists during cooldown period
+
+echo "[log-locate-daemon] Watching : $LOG_FILE"
+echo "[log-locate-daemon] Index    : $IDX_FILE"
+echo "[log-locate-daemon] Patterns : $PATTERNS"
+echo "[log-locate-daemon] Alerts   : $ALERT_PATTERNS"
+echo "[log-locate-daemon] Notify   : $NOTIFY"
+
+# ─── Count existing lines so new line numbers are accurate ────────────────────
+LINE_COUNT=0
+if [[ -f "$IDX_FILE" ]]; then
+  # Resume from last indexed line number
+  LAST=$(awk -F'\t' 'NF>=2 {n=$2+0} END {print n+0}' "$IDX_FILE")
+  LINE_COUNT=$LAST
+  echo "[log-locate-daemon] Resuming from line $LINE_COUNT"
+else
+  # First run — index the existing file from the beginning
+  echo "[log-locate-daemon] First run — indexing existing file..."
+  _index_existing
+fi
+
+# ─── Index existing file contents on first run ───────────────────────────────
+_index_existing() {
+  local line_num=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line_num=$(( line_num + 1 ))
+    _index_line "$line" "$line_num"
+  done < "$LOG_FILE"
+  LINE_COUNT=$line_num
+  echo "[log-locate-daemon] Indexed $LINE_COUNT existing lines."
+}
+
+# ─── Token matching ───────────────────────────────────────────────────────────
+# Check if a token matches any pattern in a space-separated pattern list.
+# Supports exact match (ERROR) and prefix wildcard (user_id=*)
+_matches_pattern() {
+  local token="$1"
+  local pattern_list="$2"
+  for pattern in $pattern_list; do
+    if [[ "$pattern" == *"*" ]]; then
+      # Prefix wildcard: user_id=* → match anything starting with user_id=
+      local prefix="${pattern%\*}"
+      [[ "$token" == "$prefix"* ]] && return 0
+    else
+      # Exact match
+      [[ "$token" == "$pattern" ]] && return 0
+    fi
+  done
+  return 1
+}
+
+# ─── Extract timestamp from a log line ───────────────────────────────────────
+# Expects: 2026-05-28T10:17:27.701Z [LEVEL] message
+# Falls back to current time if format doesn't match
+_extract_timestamp() {
+  local line="$1"
+  local ts
+  ts=$(echo "$line" | grep -oP '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z' || true)
+  if [[ -z "$ts" ]]; then
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+  fi
+  echo "$ts"
+}
+
+# ─── Index a single line ──────────────────────────────────────────────────────
+_index_line() {
+  local line="$1"
+  local line_num="$2"
+  local timestamp
+  timestamp=$(_extract_timestamp "$line")
+
+  # Split line into tokens on whitespace
+  local token_matched=false
+  for token in $line; do
+    if _matches_pattern "$token" "$PATTERNS"; then
+      printf '%s\t%s\t%s\n' "$token" "$line_num" "$timestamp" >> "$IDX_FILE"
+      token_matched=true
+    fi
+  done
+}
+
+# ─── Alert: send Telegram message ────────────────────────────────────────────
+_send_telegram() {
+  local message="$1"
+  if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
+    echo "[log-locate-daemon] Telegram not configured, skipping." >&2
+    return
+  fi
+  curl -s -X POST \
+    "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+    -d chat_id="$TELEGRAM_CHAT_ID" \
+    --data-urlencode text="$message" \
+    -d parse_mode="HTML" \
+    > /dev/null
+}
+
+# ─── Alert: send email via SMTP using curl ────────────────────────────────────
+# curl supports SMTP natively — no mailutils or sendmail needed
+_send_email() {
+  local subject="$1"
+  local body="$2"
+  if [[ -z "$SMTP_USER" || -z "$SMTP_PASS" || -z "$ALERT_TO" ]]; then
+    echo "[log-locate-daemon] Email not configured, skipping." >&2
+    return
+  fi
+  local from="${ALERT_FROM:-$SMTP_USER}"
+  local date_str
+  date_str=$(date -u +"%a, %d %b %Y %H:%M:%S +0000")
+
+  # Write RFC-2822 message to a temp file
+  local msg_file
+  msg_file=$(mktemp)
+  cat > "$msg_file" <<EOF
+Date: $date_str
+From: $from
+To: $ALERT_TO
+Subject: $subject
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+
+$body
+EOF
+
+  curl -s \
+    --url "smtp://${SMTP_HOST}:${SMTP_PORT}" \
+    --ssl-reqd \
+    --mail-from "$from" \
+    --mail-rcpt "$ALERT_TO" \
+    --user "${SMTP_USER}:${SMTP_PASS}" \
+    --upload-file "$msg_file" \
+    > /dev/null
+
+  rm -f "$msg_file"
+}
+
+# ─── Flush alert batch ────────────────────────────────────────────────────────
+_flush_alerts() {
+  [[ ! -f "$BATCH_FILE" ]] && return
+  [[ -f "$LOCK_FILE"    ]] && return  # still in cooldown
+
+  local count
+  count=$(wc -l < "$BATCH_FILE")
+  [[ "$count" -eq 0 ]] && return
+
+  local body
+  body=$(cat "$BATCH_FILE")
+  local subject="[log-locate] ${count} alert(s) in $(basename "$LOG_FILE")"
+  local tg_message
+  tg_message="🚨 <b>log-locate alert</b>
+File: <code>${LOG_FILE}</code>
+Time: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+${body}
+<i>${count} alert(s)</i>"
+
+  echo "[log-locate-daemon] Sending alert — $count line(s) matched"
+
+  case "$NOTIFY" in
+    telegram) _send_telegram "$tg_message" ;;
+    email)    _send_email "$subject" "$body" ;;
+    both)
+      _send_telegram "$tg_message"
+      _send_email "$subject" "$body"
+      ;;
+  esac
+
+  # Clear batch and start cooldown
+  rm -f "$BATCH_FILE"
+  touch "$LOCK_FILE"
+  (
+    sleep "$COOLDOWN_SECONDS"
+    rm -f "$LOCK_FILE"
+    echo "[log-locate-daemon] Cooldown over for $LOG_FILE"
+  ) &
+}
+
+# ─── Process a new line ───────────────────────────────────────────────────────
+_process_line() {
+  local line="$1"
+  LINE_COUNT=$(( LINE_COUNT + 1 ))
+
+  # Index the line
+  _index_line "$line" "$LINE_COUNT"
+
+  # Check for alert patterns
+  if [[ -f "$LOCK_FILE" ]]; then
+    return  # in cooldown, skip alerting
+  fi
+
+  local alerted=false
+  for token in $line; do
+    if _matches_pattern "$token" "$ALERT_PATTERNS"; then
+      printf '#%s keyword="%s"\n   %s\n\n' \
+        "$(( $(wc -l < "$BATCH_FILE" 2>/dev/null || echo 0) + 1 ))" \
+        "$token" \
+        "$line" >> "$BATCH_FILE"
+      alerted=true
+      break  # one alert per line
+    fi
+  done
+
+  # Schedule a flush after BATCH_SECONDS if this was the first line in batch
+  if $alerted && [[ $(wc -l < "$BATCH_FILE" 2>/dev/null || echo 0) -eq 3 ]]; then
+    (
+      sleep "$BATCH_SECONDS"
+      _flush_alerts
+    ) &
+  fi
+}
+
+# ─── Main watch loop ──────────────────────────────────────────────────────────
+echo "[log-locate-daemon] Ready — tailing new lines..."
+
+# tail -F follows the file even across log rotations
+tail -n 0 -F "$LOG_FILE" 2>/dev/null | while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -z "${line// }" ]] && continue  # skip blank lines
+  _process_line "$line"
+done

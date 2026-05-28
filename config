@@ -1,0 +1,36 @@
+# /etc/log-locate/config
+# Global configuration for log-locate
+# Per-file overrides go in /etc/log-locate/<filename>.conf
+
+# ── Indexing ──────────────────────────────────────────────────────────────────
+# Tokens to index. Space-separated.
+# Plain words = exact match:   ERROR WARN FATAL
+# Prefix wildcard = key=value: user_id=* request_id=* host=*
+PATTERNS="ERROR WARN FATAL"
+
+# ── Alerting ──────────────────────────────────────────────────────────────────
+# Which indexed tokens also trigger a notification.
+# Must be a subset of PATTERNS.
+ALERT_PATTERNS="ERROR FATAL 500"
+
+# Notification channel: telegram | email | both
+NOTIFY="telegram"
+
+# ── Telegram ──────────────────────────────────────────────────────────────────
+TELEGRAM_BOT_TOKEN=""
+TELEGRAM_CHAT_ID=""
+
+# ── Email (SMTP) ──────────────────────────────────────────────────────────────
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_USER=""
+SMTP_PASS=""
+ALERT_FROM=""
+ALERT_TO=""
+
+# ── Batching & cooldown ───────────────────────────────────────────────────────
+# Collect matching lines for this many seconds before sending one alert.
+BATCH_SECONDS="10"
+
+# After sending an alert, suppress new alerts for this many seconds.
+COOLDOWN_SECONDS="300"
