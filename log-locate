@@ -162,31 +162,6 @@ UNIT
   systemctl enable "$service" 2>/dev/null || true
   systemctl restart "$service"
 
-  # Index existing file contents immediately in the background
-  echo -e "${BLU}[loglo] Indexing existing content in background...${RST}"
-  nohup bash -c "
-    idx='${abs_file}.idx'
-    lnum=0
-    PATTERNS='ERROR WARN FATAL'
-    [[ -f /etc/log-locate/config ]] && source /etc/log-locate/config
-    [[ -f /etc/log-locate/${name}.conf ]] && source /etc/log-locate/${name}.conf
-    while IFS= read -r line || [[ -n \"\$line\" ]]; do
-      lnum=\$(( lnum + 1 ))
-      [[ -z \"\${line// }\" ]] && continue
-      ts=\$(echo \"\$line\" | grep -oP '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z' || date -u +%Y-%m-%dT%H:%M:%S.000Z)
-      for token in \$line; do
-        for pat in \$PATTERNS; do
-          if [[ \"\$pat\" == *'*' ]]; then
-            prefix=\"\${pat%\*}\"
-            [[ \"\$token\" == \"\$prefix\"* ]] && printf '%s\t%s\t%s\n' \"\$token\" \"\$lnum\" \"\$ts\" >> \"\$idx\" && break
-          else
-            [[ \"\$token\" == \"\$pat\" ]] && printf '%s\t%s\t%s\n' \"\$token\" \"\$lnum\" \"\$ts\" >> \"\$idx\" && break
-          fi
-        done
-      done
-    done < '${abs_file}'
-    echo '[loglo] Initial indexing complete: ${abs_file}'
-  " >> /var/log/loglo-index.log 2>&1 &
 
   echo -e "${GRN}[loglo] Now watching : $abs_file${RST}"
   echo -e "${GRN}[loglo] Name        : $name${RST}"
@@ -319,16 +294,15 @@ cmd_range() {
 
   dd if="$idx_file" bs=1 skip="$lo" 2>/dev/null \
     | awk -F'\t' -v from="$from_ts" -v to="$to_ts" \
-        -v YLW='\033[1;33m' -v BLU='\033[0;34m' -v RST='\033[0m' '
-        NR==1 { next }
-        NF < 3 { next }
-        $3 > to  { exit }
-        $3 >= from {
-          printf YLW "line %-8s" RST " " BLU "%s" RST "  %s\n", $2, $3, $1
-          count++
-        }
-        END { printf "\n%d result(s)\n", count }
-      '
+      -v YLW='\033[1;33m' -v BLU='\033[0;34m' -v RST='\033[0m' '
+      NF < 3 { next }
+      $3 > to  { next }
+      $3 >= from {
+        printf YLW "line %-8s" RST " " BLU "%s" RST "  %s\n", $2, $3, $1
+        count++
+      }
+      END { printf "\n%d result(s)\n", count }
+    ' "$idx_file"
 
   local elapsed_ms=$(( ($(date +%s%N) - start_ns) / 1000000 ))
   echo -e "${GRN}Range search done — ${elapsed_ms}ms${RST}"

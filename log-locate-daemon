@@ -128,19 +128,18 @@ _extract_timestamp() {
   local line="$1"
   local ts
 
-  # Try ISO 8601 first: 2026-05-28T10:17:27.701Z
+  # ISO 8601: 2026-05-28T10:17:27.701Z
   ts=$(echo "$line" | grep -oP '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z' || true)
   [[ -n "$ts" ]] && echo "$ts" && return
 
-  # Try syslog-style: 2026/05/30 08:49:12 → convert to ISO 8601
+  # Syslog-style: 2026/05/30 08:49:12
   ts=$(echo "$line" | grep -oP '^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}' || true)
   if [[ -n "$ts" ]]; then
-    # Convert 2026/05/30 08:49:12 → 2026-05-30T08:49:12.000Z
     echo "${ts:0:4}-${ts:5:2}-${ts:8:2}T${ts:11:8}.000Z"
     return
   fi
 
-  # Fallback: current time
+  # Fallback
   date -u +"%Y-%m-%dT%H:%M:%S.000Z"
 }
 
