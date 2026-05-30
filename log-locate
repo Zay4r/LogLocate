@@ -5,7 +5,7 @@ set -euo pipefail
 
 GLOBAL_CONFIG="/etc/log-locate/config"
 CONFIG_DIR="/etc/log-locate"
-SERVICE_TEMPLATE="log-locate@"
+REGISTRY="/etc/log-locate/registry"   # name → abs_path, one per line
 SERVICE_DIR="/etc/systemd/system"
 
 RED='\033[0;31m'
@@ -16,18 +16,6 @@ RST='\033[0m'
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
-# Use systemd-escape for safe path → instance name conversion.
-# This correctly handles hyphens, spaces, and special chars in paths.
-# /home/deved/vpn-server/logs/server.log → home-deved-vpn\x2dserver-logs-server.log
-_path_to_instance() {
-  systemd-escape --path "$1"
-}
-
-# Decode instance name back to real path
-_instance_to_path() {
-  systemd-escape --path --unescape "$1"
-}
-
 _require_root() {
   if [[ $EUID -ne 0 ]]; then
     echo -e "${RED}[loglo] This command requires root. Run with sudo.${RST}" >&2
@@ -35,49 +23,115 @@ _require_root() {
   fi
 }
 
+# Convert abs path to a safe service name using only the --name or basename
+# Service file: /etc/systemd/system/loglo-<name>.service
+_service_name() {
+  local name="$1"
+  echo "loglo-${name}.service"
+}
+
+# Registry helpers — stores "name<TAB>abs_path" in /etc/log-locate/registry
+_registry_add() {
+  local name="$1" path="$2"
+  mkdir -p "$CONFIG_DIR"
+  # Remove old entry for same name or same path, then add new
+  touch "$REGISTRY"
+  grep -v -e "^${name}"$'\t' -e $'\t'"${path}$" "$REGISTRY" > "${REGISTRY}.tmp" || true
+  echo -e "${name}\t${path}" >> "${REGISTRY}.tmp"
+  mv "${REGISTRY}.tmp" "$REGISTRY"
+}
+
+_registry_remove() {
+  local name="$1"
+  touch "$REGISTRY"
+  grep -v "^${name}"$'\t' "$REGISTRY" > "${REGISTRY}.tmp" || true
+  mv "${REGISTRY}.tmp" "$REGISTRY"
+}
+
+_registry_path_to_name() {
+  local path="$1"
+  touch "$REGISTRY"
+  awk -F'\t' -v p="$path" '$2==p {print $1; exit}' "$REGISTRY"
+}
+
+_registry_name_to_path() {
+  local name="$1"
+  touch "$REGISTRY"
+  awk -F'\t' -v n="$name" '$1==n {print $2; exit}' "$REGISTRY"
+}
+
+# Resolve <file-or-name> → absolute path
+# Accepts: a name from registry, a relative path, or an absolute path
+_resolve() {
+  local input="$1"
+  # Try registry name first
+  local from_registry
+  from_registry=$(_registry_name_to_path "$input" || true)
+  if [[ -n "$from_registry" ]]; then
+    echo "$from_registry"
+    return
+  fi
+  # Fall back to path
+  realpath -m "$input"
+}
+
 # ─── Command: add ─────────────────────────────────────────────────────────────
 cmd_add() {
   _require_root
   local file=""
+  local name=""
   local patterns=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --name)     name="$2";     shift 2 ;;
       --patterns) patterns="$2"; shift 2 ;;
       *)          file="$1";     shift   ;;
     esac
   done
 
   if [[ -z "$file" ]]; then
-    echo -e "${RED}Usage: loglo add <file> [--patterns \"ERROR user_id=*\"]${RST}" >&2
+    echo -e "${RED}Usage: sudo loglo add <file> [--name myapp] [--patterns \"ERROR user_id=*\"]${RST}" >&2
     exit 1
   fi
 
   local abs_file
   abs_file=$(realpath -m "$file")
 
+  # Default name is basename without extension e.g. server.log → server
+  if [[ -z "$name" ]]; then
+    name=$(basename "$abs_file" | sed 's/\.[^.]*$//')
+    # If name already taken in registry for a different path, append suffix
+    local existing
+    existing=$(_registry_name_to_path "$name" || true)
+    if [[ -n "$existing" && "$existing" != "$abs_file" ]]; then
+      name="${name}_$(date +%s)"
+    fi
+  fi
+
   # Write per-file config if custom patterns were given
   if [[ -n "$patterns" ]]; then
-    local conf_file="${CONFIG_DIR}/$(basename "$abs_file").conf"
+    local conf_file="${CONFIG_DIR}/${name}.conf"
     mkdir -p "$CONFIG_DIR"
     cat > "$conf_file" <<CONF
-# Per-file config for $abs_file
+# Per-file config for $abs_file (name: $name)
 PATTERNS="$patterns"
 ALERT_PATTERNS="$patterns"
 CONF
     echo -e "${GRN}[loglo] Wrote config: $conf_file${RST}"
   fi
 
-  local instance
-  instance=$(_path_to_instance "$abs_file")
-  local service="${SERVICE_TEMPLATE}${instance}.service"
+  # Register name → path
+  _registry_add "$name" "$abs_file"
+
+  # Write a dedicated service file — no escaping issues, real path embedded
+  local service
+  service=$(_service_name "$name")
   local unit_file="${SERVICE_DIR}/${service}"
 
-  # Write a per-instance service file that passes the real path explicitly.
-  # This avoids relying on instance name decoding entirely.
-  cat > "$unit_file" <<UNIT
+  cat > "$unit_file" << UNIT
 [Unit]
-Description=loglo indexer/alerter for $abs_file
+Description=loglo indexer/alerter — $name ($abs_file)
 After=network.target
 
 [Service]
@@ -87,9 +141,10 @@ ExecStart=/usr/local/bin/loglo-daemon $abs_file
 Restart=on-failure
 RestartSec=5s
 EnvironmentFile=-/etc/log-locate/config
+EnvironmentFile=-/etc/log-locate/${name}.conf
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=loglo
+SyslogIdentifier=loglo-${name}
 
 [Install]
 WantedBy=multi-user.target
@@ -99,49 +154,83 @@ UNIT
   systemctl enable "$service" 2>/dev/null || true
   systemctl restart "$service"
 
-  echo -e "${GRN}[loglo] Now watching: $abs_file${RST}"
+  # Index existing file contents immediately in the background
+  echo -e "${BLU}[loglo] Indexing existing content in background...${RST}"
+  nohup bash -c "
+    idx='${abs_file}.idx'
+    lnum=0
+    PATTERNS='ERROR WARN FATAL'
+    [[ -f /etc/log-locate/config ]] && source /etc/log-locate/config
+    [[ -f /etc/log-locate/${name}.conf ]] && source /etc/log-locate/${name}.conf
+    while IFS= read -r line || [[ -n \"\$line\" ]]; do
+      lnum=\$(( lnum + 1 ))
+      [[ -z \"\${line// }\" ]] && continue
+      ts=\$(echo \"\$line\" | grep -oP '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z' || date -u +%Y-%m-%dT%H:%M:%S.000Z)
+      for token in \$line; do
+        for pat in \$PATTERNS; do
+          if [[ \"\$pat\" == *'*' ]]; then
+            prefix=\"\${pat%\*}\"
+            [[ \"\$token\" == \"\$prefix\"* ]] && printf '%s\t%s\t%s\n' \"\$token\" \"\$lnum\" \"\$ts\" >> \"\$idx\" && break
+          else
+            [[ \"\$token\" == \"\$pat\" ]] && printf '%s\t%s\t%s\n' \"\$token\" \"\$lnum\" \"\$ts\" >> \"\$idx\" && break
+          fi
+        done
+      done
+    done < '${abs_file}'
+    echo '[loglo] Initial indexing complete: ${abs_file}'
+  " >> /var/log/loglo-index.log 2>&1 &
+
+  echo -e "${GRN}[loglo] Now watching : $abs_file${RST}"
+  echo -e "${GRN}[loglo] Name        : $name${RST}"
   echo -e "${GRN}[loglo] Index file  : ${abs_file}.idx${RST}"
   echo -e "${BLU}[loglo] Service     : $service${RST}"
   echo ""
-  echo "  View logs : journalctl -u $service -f"
-  echo "  Stop      : loglo remove $abs_file"
+  echo "  View logs  : journalctl -u $service -f"
+  echo "  Stop       : sudo loglo remove $name"
+  echo "  Search     : loglo search $name \"ERROR\""
+  echo "  Range      : loglo range $name 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z"
 }
 
 # ─── Command: remove ──────────────────────────────────────────────────────────
 cmd_remove() {
   _require_root
-  local file="$1"
-  if [[ -z "$file" ]]; then
-    echo -e "${RED}Usage: loglo remove <file>${RST}" >&2
+  local input="$1"
+  if [[ -z "$input" ]]; then
+    echo -e "${RED}Usage: sudo loglo remove <name-or-file>${RST}" >&2
     exit 1
   fi
 
   local abs_file
-  abs_file=$(realpath -m "$file")
-  local instance
-  instance=$(_path_to_instance "$abs_file")
-  local service="${SERVICE_TEMPLATE}${instance}.service"
+  abs_file=$(_resolve "$input")
+  local name
+  name=$(_registry_path_to_name "$abs_file" || true)
+  [[ -z "$name" ]] && name="$input"
+
+  local service
+  service=$(_service_name "$name")
 
   systemctl stop    "$service" 2>/dev/null || true
   systemctl disable "$service" 2>/dev/null || true
   rm -f "${SERVICE_DIR}/${service}"
   systemctl daemon-reload
 
-  echo -e "${GRN}[loglo] Stopped watching: $abs_file${RST}"
+  _registry_remove "$name"
+
+  echo -e "${GRN}[loglo] Stopped watching: $abs_file (name: $name)${RST}"
 }
 
 # ─── Command: search ──────────────────────────────────────────────────────────
 cmd_search() {
-  local file="$1"
+  local input="$1"
   local keyword="$2"
 
-  if [[ -z "$file" || -z "$keyword" ]]; then
-    echo -e "${RED}Usage: loglo search <file> <keyword>${RST}" >&2
+  if [[ -z "$input" || -z "$keyword" ]]; then
+    echo -e "${RED}Usage: loglo search <name-or-file> <keyword>${RST}" >&2
     exit 1
   fi
 
   local abs_file
-  abs_file=$(realpath -m "$file")
+  abs_file=$(_resolve "$input")
   local idx_file="${abs_file}.idx"
 
   if [[ ! -f "$idx_file" ]]; then
@@ -177,18 +266,18 @@ cmd_search() {
 
 # ─── Command: range ───────────────────────────────────────────────────────────
 cmd_range() {
-  local file="$1"
+  local input="$1"
   local from_ts="$2"
   local to_ts="$3"
 
-  if [[ -z "$file" || -z "$from_ts" || -z "$to_ts" ]]; then
-    echo -e "${RED}Usage: loglo range <file> <from-ts> <to-ts>${RST}" >&2
-    echo "  Example: loglo range /path/to/app.log 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z"
+  if [[ -z "$input" || -z "$from_ts" || -z "$to_ts" ]]; then
+    echo -e "${RED}Usage: loglo range <name-or-file> <from-ts> <to-ts>${RST}" >&2
+    echo "  Example: loglo range server 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z"
     exit 1
   fi
 
   local abs_file
-  abs_file=$(realpath -m "$file")
+  abs_file=$(_resolve "$input")
   local idx_file="${abs_file}.idx"
 
   if [[ ! -f "$idx_file" ]]; then
@@ -199,7 +288,6 @@ cmd_range() {
   local start_ns
   start_ns=$(date +%s%N)
 
-  # Binary search to find byte offset where timestamps >= from_ts begin
   local file_size lo=0 hi mid ts
   file_size=$(wc -c < "$idx_file")
   hi=$file_size
@@ -208,7 +296,6 @@ cmd_range() {
     mid=$(( (lo + hi) / 2 ))
     ts=$(dd if="$idx_file" bs=1 skip="$mid" count=512 2>/dev/null \
       | awk -F'\t' 'NR==2 && NF>=3 {print $3; exit}')
-
     if [[ -z "$ts" || "$ts" < "$from_ts" ]]; then
       lo=$(( mid + 1 ))
     else
@@ -216,7 +303,6 @@ cmd_range() {
     fi
   done
 
-  local count=0
   dd if="$idx_file" bs=1 skip="$lo" 2>/dev/null \
     | awk -F'\t' -v from="$from_ts" -v to="$to_ts" \
         -v YLW='\033[1;33m' -v BLU='\033[0;34m' -v RST='\033[0m' '
@@ -227,7 +313,7 @@ cmd_range() {
           printf YLW "line %-8s" RST " " BLU "%s" RST "  %s\n", $2, $3, $1
           count++
         }
-        END { printf "\n%d result(s)\n", count > "/dev/stderr" }
+        END { printf "\n%d result(s)\n", count }
       '
 
   local elapsed_ms=$(( ($(date +%s%N) - start_ns) / 1000000 ))
@@ -241,36 +327,31 @@ cmd_status() {
 
   local found=false
 
-  # Scan unit files on disk — more reliable than list-units
-  # which only shows loaded/active units
-  for unit_file in "${SERVICE_DIR}"/log-locate@*.service; do
-    [[ -f "$unit_file" ]] || continue
+  touch "$REGISTRY" 2>/dev/null || true
 
-    # Extract real log file path from ExecStart line
-    local file_path
-    file_path=$(grep -oP '(?<=ExecStart=/usr/local/bin/loglo-daemon ).*' "$unit_file" || true)
-    [[ -z "$file_path" ]] && continue
+  while IFS=$'\t' read -r name abs_file; do
+    [[ -z "$name" || -z "$abs_file" ]] && continue
 
-    local unit
-    unit=$(basename "$unit_file")
+    local service
+    service=$(_service_name "$name")
     local state
-    state=$(systemctl is-active "$unit" 2>/dev/null || echo "inactive")
+    state=$(systemctl is-active "$service" 2>/dev/null || echo "inactive")
 
     local color=$RED
     [[ "$state" == "active" ]] && color=$GRN
 
-    printf "  ${color}%-10s${RST}  %s\n" "$state" "$file_path"
+    printf "  ${color}%-10s${RST}  %-20s  %s\n" "$state" "$name" "$abs_file"
 
-    if [[ -f "${file_path}.idx" ]]; then
+    if [[ -f "${abs_file}.idx" ]]; then
       local idx_lines
-      idx_lines=$(wc -l < "${file_path}.idx")
-      printf "             Index: %s entries\n" "$idx_lines"
+      idx_lines=$(wc -l < "${abs_file}.idx")
+      printf "               Index : %s entries\n" "$idx_lines"
     else
-      printf "             Index: not yet created\n"
+      printf "               Index : not yet created\n"
     fi
 
     found=true
-  done
+  done < "$REGISTRY"
 
   if ! $found; then
     echo "  No files being watched."
@@ -279,30 +360,51 @@ cmd_status() {
   echo '─────────────────────────────────────────────────────────────────'
 }
 
+# ─── Command: list ────────────────────────────────────────────────────────────
+cmd_list() {
+  touch "$REGISTRY" 2>/dev/null || true
+  echo -e "${BLU}Registered names:${RST}"
+  while IFS=$'\t' read -r name abs_file; do
+    [[ -z "$name" ]] && continue
+    echo "  $name  →  $abs_file"
+  done < "$REGISTRY"
+}
+
 # ─── Command: help ────────────────────────────────────────────────────────────
 cmd_help() {
   cat <<HELP
 
-${BLU}log-locate${RST} — log indexer and alerter
+${BLU}loglo${RST} — log indexer and alerter
 
 Usage:
-  sudo loglo add    <file> [--patterns "ERROR user_id=* request_id=*"]
-  sudo loglo remove <file>
-       loglo search <file> <keyword>
-       loglo range  <file> <from-ts> <to-ts>
+  sudo loglo add    <file> [--name <name>] [--patterns "ERROR user_id=*"]
+  sudo loglo remove <name-or-file>
+       loglo search <name-or-file> <keyword>
+       loglo range  <name-or-file> <from-ts> <to-ts>
        loglo status
+       loglo list
        loglo help
 
 Examples:
+  # Add with auto name (uses filename without extension e.g. "server")
   sudo loglo add /home/deved/vpn-server/logs/server.log
-  sudo loglo add /home/deved/vpn-server/logs/server.log --patterns "ERROR WARN user_id=*"
 
-  loglo search /home/deved/vpn-server/logs/server.log "ERROR"
-  loglo search /home/deved/vpn-server/logs/server.log "user_id=99999"
+  # Add with custom name
+  sudo loglo add /home/deved/vpn-server/logs/server.log --name vpn
 
-  loglo range /home/deved/vpn-server/logs/server.log 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z
+  # Search by name — no need to type the full path
+  loglo search vpn "ERROR"
+  loglo search vpn "user_id=99999"
 
+  # Range search by name
+  loglo range vpn 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z
+
+  # Remove by name
+  sudo loglo remove vpn
+
+  # Status and list
   loglo status
+  loglo list
 
 HELP
 }
@@ -317,6 +419,7 @@ case "$COMMAND" in
   search) cmd_search "$@" ;;
   range)  cmd_range  "$@" ;;
   status) cmd_status      ;;
+  list)   cmd_list        ;;
   help|--help|-h) cmd_help ;;
   *)
     echo -e "${RED}[loglo] Unknown command: $COMMAND${RST}" >&2
