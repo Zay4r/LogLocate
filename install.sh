@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # install.sh — log-locate installer
 #
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/you/log-locate/main/install.sh | sudo bash
+# Usage (remote — pipe directly from GitHub):
+#   curl -fsSL https://raw.githubusercontent.com/Zay4r/LogLocate/main/install.sh | sudo bash
 #
-# Or locally:
+# Usage (local — after cloning the repo):
 #   sudo bash install.sh
 
 set -euo pipefail
@@ -17,7 +17,7 @@ RST='\033[0m'
 BIN_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/log-locate"
 SERVICE_DIR="/etc/systemd/system"
-REPO_RAW="https://raw.githubusercontent.com/you/log-locate/main"
+REPO_RAW="https://raw.githubusercontent.com/Zay4r/LogLocate/main"
 
 # ─── Must run as root ─────────────────────────────────────────────────────────
 if [[ $EUID -ne 0 ]]; then
@@ -35,17 +35,25 @@ for dep in curl tail awk grep dd systemctl; do
   fi
 done
 
-# ─── Detect: running from local dir or downloading from GitHub ───────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ─── Detect: running locally or piped from curl ──────────────────────────────
+# When piped via curl | bash, BASH_SOURCE[0] is empty or just "bash"
+# so we can't rely on it — always download from GitHub in that case.
+if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "bash" && -f "$(dirname "${BASH_SOURCE[0]}")/log-locate" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  USE_LOCAL=true
+else
+  SCRIPT_DIR=""
+  USE_LOCAL=false
+fi
 
 _get_file() {
   local name="$1"
   local dest="$2"
-  if [[ -f "${SCRIPT_DIR}/${name}" ]]; then
-    # Local install
+  if $USE_LOCAL && [[ -f "${SCRIPT_DIR}/${name}" ]]; then
+    echo "  (local) $name"
     cp "${SCRIPT_DIR}/${name}" "$dest"
   else
-    # Remote install
+    echo "  (download) $name"
     curl -fsSL "${REPO_RAW}/${name}" -o "$dest"
   fi
 }
