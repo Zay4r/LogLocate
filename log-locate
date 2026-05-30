@@ -264,9 +264,11 @@ cmd_search() {
       [[ "$token" == "$keyword" ]] && match=true
     fi
 
-    if $match; then
-      printf "${YLW}line %-8s${RST} ${BLU}%s${RST}  %s\n" \
-        "$line_num" "$timestamp" "$token"
+      if $match; then
+      local log_line
+      log_line=$(sed -n "${line_num}p" "$abs_file" 2>/dev/null || echo "(line unavailable)")
+      printf "${YLW}line %-8s${RST} ${BLU}%s${RST}\n  %s\n" \
+        "$line_num" "$timestamp" "$log_line"
       count=$(( count + 1 ))
     fi
   done < "$idx_file"
