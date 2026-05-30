@@ -83,7 +83,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/log-locate-daemon $abs_file
+ExecStart=/usr/local/bin/loglo-daemon $abs_file
 Restart=on-failure
 RestartSec=5s
 EnvironmentFile=-/etc/log-locate/config
@@ -240,17 +240,22 @@ cmd_status() {
   echo '─────────────────────────────────────────────────────────────────'
 
   local found=false
-  while IFS= read -r unit; do
-    # Read the ExecStart line from the unit file to get the real path
-    local unit_file="${SERVICE_DIR}/${unit}"
-    local file_path=""
-    if [[ -f "$unit_file" ]]; then
-      file_path=$(grep -oP '(?<=ExecStart=/usr/local/bin/log-locate-daemon ).*' "$unit_file" || true)
-    fi
+
+  # Scan unit files on disk — more reliable than list-units
+  # which only shows loaded/active units
+  for unit_file in "${SERVICE_DIR}"/log-locate@*.service; do
+    [[ -f "$unit_file" ]] || continue
+
+    # Extract real log file path from ExecStart line
+    local file_path
+    file_path=$(grep -oP '(?<=ExecStart=/usr/local/bin/loglo-daemon ).*' "$unit_file" || true)
     [[ -z "$file_path" ]] && continue
 
+    local unit
+    unit=$(basename "$unit_file")
     local state
-    state=$(systemctl is-active "${unit}" 2>/dev/null || echo "inactive")
+    state=$(systemctl is-active "$unit" 2>/dev/null || echo "inactive")
+
     local color=$RED
     [[ "$state" == "active" ]] && color=$GRN
 
@@ -265,9 +270,7 @@ cmd_status() {
     fi
 
     found=true
-  done < <(systemctl list-units --type=service --all \
-    | grep "${SERVICE_TEMPLATE}" \
-    | awk '{print $1}')
+  done
 
   if ! $found; then
     echo "  No files being watched."
