@@ -334,13 +334,18 @@ cmd_status() {
 
     local service
     service=$(_service_name "$name")
+
+    # is-active can print "activating" to stdout — capture it cleanly
     local state
-    state=$(systemctl is-active "$service" 2>/dev/null || echo "inactive")
+    state=$(systemctl is-active "$service" 2>/dev/null || true)
+    state=$(echo "$state" | tr -d '[:space:]')
+    [[ -z "$state" ]] && state="inactive"
 
     local color=$RED
-    [[ "$state" == "active" ]] && color=$GRN
+    [[ "$state" == "active" ]]     && color=$GRN
+    [[ "$state" == "activating" ]] && color=$YLW
 
-    printf "  ${color}%-10s${RST}  %-20s  %s\n" "$state" "$name" "$abs_file"
+    printf "  ${color}%-12s${RST}  %-20s  %s\n" "$state" "$name" "$abs_file"
 
     if [[ -f "${abs_file}.idx" ]]; then
       local idx_lines
