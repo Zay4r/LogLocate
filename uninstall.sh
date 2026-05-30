@@ -30,25 +30,28 @@ while IFS= read -r unit; do
   echo "  Stopping: $unit"
   systemctl stop    "$unit" 2>/dev/null || true
   systemctl disable "$unit" 2>/dev/null || true
+  rm -f "/etc/systemd/system/${unit}"
 done < <(systemctl list-units --type=service --all \
-  | grep 'log-locate@' \
+  | grep -E 'log-locate@|loglo-' \
   | awk '{print $1}')
+
+# Remove any leftover service files not caught by list-units
+rm -f /etc/systemd/system/loglo-*.service
+rm -f /etc/systemd/system/log-locate@*.service
+rm -f /etc/systemd/system/log-locate_.service
 
 # ─── Remove binaries ──────────────────────────────────────────────────────────
 echo "  Removing binaries..."
 rm -f /usr/local/bin/log-locate
 rm -f /usr/local/bin/log-locate-daemon
-rm -f /usr/local/bin/loglo          # symlink alias
+rm -f /usr/local/bin/loglo
 echo "  Removed: /usr/local/bin/log-locate"
 echo "  Removed: /usr/local/bin/log-locate-daemon"
 echo "  Removed: /usr/local/bin/loglo (symlink)"
 
-# ─── Remove systemd service ───────────────────────────────────────────────────
-echo "  Removing systemd service..."
-rm -f /etc/systemd/system/log-locate@.service
+# ─── Reload systemd ───────────────────────────────────────────────────────────
 systemctl daemon-reload
 systemctl reset-failed 2>/dev/null || true
-echo "  Removed: /etc/systemd/system/log-locate@.service"
 
 # ─── Remove config directory ──────────────────────────────────────────────────
 echo "  Removing config..."
