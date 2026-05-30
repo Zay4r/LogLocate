@@ -205,25 +205,20 @@ _flush_alerts() {
   local tg_lines=""
   local subject_keyword=""
   while IFS= read -r raw_line; do
-    # Lines with leading spaces are the actual log content
     if [[ "$raw_line" =~ ^[[:space:]] ]]; then
       local log_line
-      log_line="${raw_line#"${raw_line%%[! ]*}"}"  # trim leading spaces
+      log_line="${raw_line#"${raw_line%%[! ]*}"}"
 
-      # Extract time (HH:MM:SS)
       local ts
       ts=$(echo "$log_line" | grep -oP '\d{2}:\d{2}:\d{2}' | head -1 || true)
 
-      # Extract keyword
       local kw
       kw=$(echo "$log_line" | grep -oP '\b(DENIED|ALLOWED|REQUEST|BLOCKED|UNBLOCKED|ERROR|FATAL|WARN)\b' | head -1 || true)
       [[ -z "$subject_keyword" && -n "$kw" ]] && subject_keyword="$kw"
 
-      # Extract IP
       local ip
       ip=$(echo "$log_line" | grep -oP 'ip[=:]\K[\d.]+' | head -1 || true)
 
-      # Extract short build (device model only)
       local build
       build=$(echo "$log_line" | grep -oP 'build[=:]\S+' | sed 's/build[=:]//' | cut -d'/' -f2 || true)
 
@@ -237,7 +232,6 @@ _flush_alerts() {
   local alert_count=$(( count / 3 ))
   [[ $alert_count -eq 0 ]] && alert_count=1
   local subject="[log-locate] ${subject_keyword:-alert} × ${alert_count} — $(basename "$LOG_FILE")"
-
   local tg_message
   tg_message="🚨 <b>${subject_keyword:-log-locate alert}</b>  <i>(${alert_count} event(s))</i>
 ${tg_lines}"
@@ -253,14 +247,12 @@ ${tg_lines}"
       ;;
   esac
 
-  # Clear batch and start cooldown
   rm -f "$BATCH_FILE"
   touch "$LOCK_FILE"
   (
     sleep "$COOLDOWN_SECONDS"
     rm -f "$LOCK_FILE"
     echo "[loglo-daemon] Cooldown over for $LOG_FILE"
-    # Signal main loop to flush any alerts that arrived during cooldown
     touch "$FLUSH_FILE"
   ) &
 }
@@ -272,7 +264,7 @@ _process_line() {
 
   _index_line "$line" "$LINE_COUNT"
 
-  # During cooldown still accumulate alerts — they'll flush when cooldown ends
+  # Accumulate alerts even during cooldown — flushed after cooldown ends
   local alerted=false
   for token in $line; do
     if _matches_pattern "$token" "$ALERT_PATTERNS" 2>/dev/null; then
@@ -286,7 +278,8 @@ _process_line() {
     fi
   done
 
-  # Schedule a flush after BATCH_SECONDS on the first alert in a new batch
+  # Schedule flush after BATCH_SECONDS — only when not in cooldown and
+  # this is the first line of a new batch (3 lines = header+content+blank)
   if $alerted && [[ ! -f "$LOCK_FILE" ]] && [[ $(wc -l < "$BATCH_FILE" 2>/dev/null || echo 0) -eq 3 ]]; then
     (
       sleep "$BATCH_SECONDS"
@@ -301,14 +294,14 @@ _process_line() {
 
 echo "[loglo-daemon] Ready — tailing new lines..."
 
-tail -n 0 -F "$LOG_FILE" 2>/dev/null | while IFS= read -r line || [[ -n "$line" ]]; do
-  [[ -z "${line// }" ]] && continue
-
-  # Flush trigger — set by batch timer or cooldown expiry (subshell-safe)
+# read -t 20 times out every 20s so the flush check runs even with no new lines
+tail -n 0 -F "$LOG_FILE" 2>/dev/null | while IFS= read -r -t 20 line || true; do
+  # Flush trigger — set by batch timer or cooldown expiry
   if [[ -f "$FLUSH_FILE" ]]; then
     rm -f "$FLUSH_FILE"
     _flush_alerts
   fi
 
+  [[ -z "${line// }" ]] && continue
   _process_line "$line" || true
 done
