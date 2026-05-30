@@ -24,6 +24,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 LOG_FILE="$1"
+LOG_NAME="${2:-}"
 
 if [[ ! -f "$LOG_FILE" ]]; then
   echo "[loglo-daemon] Waiting for log file to appear: $LOG_FILE"
@@ -40,11 +41,16 @@ fi
 
 # ─── Load config ──────────────────────────────────────────────────────────────
 GLOBAL_CONFIG="/etc/log-locate/config"
-FILE_CONFIG="/etc/log-locate/$(basename "$LOG_FILE").conf"
+# Per-file config: prefer name-based (server.conf) then filename-based (server.log.conf)
+if [[ -n "$LOG_NAME" ]]; then
+  FILE_CONFIG="/etc/log-locate/${LOG_NAME}.conf"
+else
+  FILE_CONFIG="/etc/log-locate/$(basename "$LOG_FILE").conf"
+fi
 
 # Defaults (used if config file is missing or value not set)
-PATTERNS="[Auth] [Blocked] [KeyRing] [Admin] [Registry] [Inbound] ERROR WARN FATAL"
-ALERT_PATTERNS="ERROR FATAL 500 [Blocked]"
+PATTERNS="ERROR WARN FATAL"
+ALERT_PATTERNS="ERROR FATAL 500"
 NOTIFY="telegram"
 TELEGRAM_BOT_TOKEN=""
 TELEGRAM_CHAT_ID=""

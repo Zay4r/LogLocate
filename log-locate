@@ -145,7 +145,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/log-locate-daemon $abs_file
+ExecStart=/usr/local/bin/log-locate-daemon $abs_file $name
 Restart=on-failure
 RestartSec=5s
 EnvironmentFile=-/etc/log-locate/config
@@ -209,7 +209,11 @@ cmd_remove() {
   fi
 
   local abs_file
-  abs_file=$(_resolve "$input")
+  if [[ "$file" = /* ]]; then
+    abs_file="$file"
+  else
+    abs_file=$(realpath -m "${PWD}/${file}")
+  fi
   local name
   name=$(_registry_path_to_name "$abs_file" || true)
   [[ -z "$name" ]] && name="$input"
