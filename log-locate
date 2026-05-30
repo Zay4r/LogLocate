@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# /usr/local/bin/loglo
+# /usr/local/bin/log-locate
+# Symlinked as /usr/local/bin/loglo for convenience.
 
 set -euo pipefail
 
@@ -96,7 +97,12 @@ cmd_add() {
   fi
 
   local abs_file
-  abs_file=$(realpath -m "$file")
+  # Use realpath only for relative paths; absolute paths are fine as-is
+  if [[ "$file" = /* ]]; then
+    abs_file="$file"
+  else
+    abs_file=$(realpath -m "$file")
+  fi
 
   # Default name is basename without extension e.g. server.log → server
   if [[ -z "$name" ]]; then
@@ -137,7 +143,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/loglo-daemon $abs_file
+ExecStart=/usr/local/bin/log-locate-daemon $abs_file
 Restart=on-failure
 RestartSec=5s
 EnvironmentFile=-/etc/log-locate/config

@@ -1,0 +1,39 @@
+# /etc/systemd/system/log-locate@.service
+#
+# Template service — one instance per watched log file.
+# The instance name is the log file path with / replaced by -
+#
+# Enable for a file:
+#   systemctl enable --now log-locate@etc-project-logs-app.log
+#
+# log-locate add /path/to/app.log  handles this automatically.
+
+[Unit]
+Description=log-locate indexer/alerter for %I
+After=network.target
+# Restart if the log file's parent process restarts
+PartOf=system.slice
+
+[Service]
+Type=simple
+User=root
+
+# %I is the instance name (URL-decoded systemd escaping)
+# We pass the real file path via the instance name
+ExecStart=/usr/local/bin/log-locate-daemon %I
+
+# Restart automatically if the daemon crashes
+Restart=on-failure
+RestartSec=5s
+
+# Give the daemon a clean environment
+EnvironmentFile=-/etc/log-locate/config
+
+# Output goes to journald — view with:
+#   journalctl -u log-locate@etc-project-logs-app.log -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=log-locate
+
+[Install]
+WantedBy=multi-user.target

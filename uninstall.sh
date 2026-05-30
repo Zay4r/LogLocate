@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# uninstall.sh — loglo uninstaller
+# uninstall.sh — log-locate uninstaller
 #
 # Usage (remote):
 #   curl -fsSL https://raw.githubusercontent.com/Zay4r/LogLocate/main/uninstall.sh | sudo bash
@@ -21,7 +21,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-echo -e "${BLU}Uninstalling loglo...${RST}"
+echo -e "${BLU}Uninstalling log-locate...${RST}"
 
 # ─── Stop and disable all running instances ───────────────────────────────────
 echo "  Stopping all loglo services..."
@@ -36,10 +36,12 @@ done < <(systemctl list-units --type=service --all \
 
 # ─── Remove binaries ──────────────────────────────────────────────────────────
 echo "  Removing binaries..."
-rm -f /usr/local/bin/loglo
-rm -f /usr/local/bin/loglo-daemon
-echo "  Removed: /usr/local/bin/loglo"
-echo "  Removed: /usr/local/bin/loglo-daemon"
+rm -f /usr/local/bin/log-locate
+rm -f /usr/local/bin/log-locate-daemon
+rm -f /usr/local/bin/loglo          # symlink alias
+echo "  Removed: /usr/local/bin/log-locate"
+echo "  Removed: /usr/local/bin/log-locate-daemon"
+echo "  Removed: /usr/local/bin/loglo (symlink)"
 
 # ─── Remove systemd service ───────────────────────────────────────────────────
 echo "  Removing systemd service..."
@@ -63,7 +65,7 @@ echo "  find / -name '*.log.batch' 2>/dev/null"
 echo ""
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
-echo -e "${GRN}loglo uninstalled successfully.${RST}"
+echo -e "${GRN}log-locate uninstalled successfully.${RST}"
 echo ""
 echo "To reinstall:"
 echo "  curl -fsSL https://raw.githubusercontent.com/Zay4r/LogLocate/main/install.sh | sudo bash"

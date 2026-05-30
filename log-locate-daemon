@@ -4,7 +4,7 @@
 # Watches a single log file, indexes matching tokens into a .idx file,
 # and sends Telegram/email alerts when ALERT_PATTERNS are matched.
 #
-# Started automatically by systemd via log-locate@.service.
+# Started automatically by systemd via the per-file service unit.
 # Can also be run manually for testing:
 #   log-locate-daemon /etc/project/logs/app.log
 #

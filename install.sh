@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# install.sh — loglo installer
+# install.sh — log-locate installer
+#
+# Installs binaries as /usr/local/bin/log-locate and /usr/local/bin/log-locate-daemon.
+# Creates /usr/local/bin/loglo as a symlink alias for faster typing.
 #
 # Usage (remote):
 #   curl -fsSL https://raw.githubusercontent.com/Zay4r/LogLocate/main/install.sh | sudo bash
@@ -25,7 +28,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-echo -e "${BLU}Installing loglo...${RST}"
+echo -e "${BLU}Installing log-locate...${RST}"
 
 # ─── Check dependencies ───────────────────────────────────────────────────────
 for dep in curl tail awk grep dd systemctl; do
@@ -58,20 +61,24 @@ _get_file() {
 
 # ─── Install binaries ─────────────────────────────────────────────────────────
 echo "  Installing binaries..."
-_get_file "log-locate"        "${BIN_DIR}/loglo"
-_get_file "log-locate-daemon" "${BIN_DIR}/loglo-daemon"
+_get_file "log-locate"        "${BIN_DIR}/log-locate"
+_get_file "log-locate-daemon" "${BIN_DIR}/log-locate-daemon"
 
-chmod +x "${BIN_DIR}/loglo"
-chmod +x "${BIN_DIR}/loglo-daemon"
+chmod +x "${BIN_DIR}/log-locate"
+chmod +x "${BIN_DIR}/log-locate-daemon"
 
-echo "  Installed: ${BIN_DIR}/loglo"
-echo "  Installed: ${BIN_DIR}/loglo-daemon"
+# loglo is just a convenience symlink → log-locate
+ln -sf "${BIN_DIR}/log-locate" "${BIN_DIR}/loglo"
 
-# ─── Install systemd service ──────────────────────────────────────────────────
-echo "  Installing systemd service..."
-_get_file "log-locate@.service" "${SERVICE_DIR}/log-locate@.service"
+echo "  Installed: ${BIN_DIR}/log-locate"
+echo "  Installed: ${BIN_DIR}/log-locate-daemon"
+echo "  Symlink  : ${BIN_DIR}/loglo → ${BIN_DIR}/log-locate"
+
+# ─── Install systemd service template ────────────────────────────────────────
+echo "  Installing systemd service template..."
+_get_file "log-locate_.service" "${SERVICE_DIR}/log-locate_.service"
 systemctl daemon-reload
-echo "  Installed: ${SERVICE_DIR}/log-locate@.service"
+echo "  Installed: ${SERVICE_DIR}/log-locate_.service"
 
 # ─── Write default config (don't overwrite existing) ─────────────────────────
 mkdir -p "$CONFIG_DIR"
@@ -85,7 +92,7 @@ fi
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${GRN}loglo installed successfully!${RST}"
+echo -e "${GRN}log-locate installed successfully!${RST}"
 echo ""
 echo "Next steps:"
 echo ""
