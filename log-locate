@@ -209,10 +209,10 @@ cmd_remove() {
   fi
 
   local abs_file
-  if [[ "$file" = /* ]]; then
-    abs_file="$file"
+  if [[ "$input" = /* ]]; then
+    abs_file="$input"
   else
-    abs_file=$(realpath -m "${PWD}/${file}")
+    abs_file=$(realpath -m "${PWD}/${input}")
   fi
   local name
   name=$(_registry_path_to_name "$abs_file" || true)
