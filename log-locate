@@ -97,11 +97,13 @@ cmd_add() {
   fi
 
   local abs_file
-  # Use realpath only for relative paths; absolute paths are fine as-is
+  # Resolve to absolute path.
+  # sudo preserves the caller's CWD in $PWD, so realpath -m works correctly
+  # as long as we pass the current PWD explicitly as the base for relative paths.
   if [[ "$file" = /* ]]; then
     abs_file="$file"
   else
-    abs_file=$(realpath -m "$file")
+    abs_file=$(realpath -m "${PWD}/${file}")
   fi
 
   # Default name is basename without extension e.g. server.log → server
