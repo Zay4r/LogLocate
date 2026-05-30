@@ -257,6 +257,7 @@ ${body}
     sleep "$COOLDOWN_SECONDS"
     rm -f "$LOCK_FILE"
     echo "[loglo-daemon] Cooldown over for $LOG_FILE"
+    _flush_alerts
   ) &
 }
 
@@ -276,6 +277,7 @@ _process_line() {
   local alerted=false
   for token in $line; do
     if _matches_pattern "$token" "$ALERT_PATTERNS" 2>/dev/null; then
+      touch "$BATCH_FILE" 2>/dev/null || true 
       printf '#%s keyword="%s"\n   %s\n\n' \
         "$(( $(wc -l < "$BATCH_FILE" 2>/dev/null || echo 0) + 1 ))" \
         "$token" \
