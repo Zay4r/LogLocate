@@ -77,7 +77,7 @@ if [[ -f "$IDX_FILE" ]]; then
 else
   # First run — index the existing file from the beginning
   echo "[loglo-daemon] First run — indexing existing file..."
-  _index_existing
+  _FIRST_RUN=true
 fi
 
 # ─── Index existing file contents on first run ───────────────────────────────
@@ -90,6 +90,7 @@ _index_existing() {
   LINE_COUNT=$line_num
   echo "[loglo-daemon] Indexed $LINE_COUNT existing lines."
 }
+
 
 # ─── Token matching ───────────────────────────────────────────────────────────
 # Check if a token matches any pattern in a space-separated pattern list.
@@ -270,6 +271,9 @@ _process_line() {
 }
 
 # ─── Main watch loop ──────────────────────────────────────────────────────────
+# Deferred first-run indexing — all helpers now defined
+[[ "${_FIRST_RUN:-false}" == "true" ]] && _index_existing
+
 echo "[loglo-daemon] Ready — tailing new lines..."
 
 # tail -F follows the file even across log rotations
