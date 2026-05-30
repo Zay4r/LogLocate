@@ -39,8 +39,8 @@ GLOBAL_CONFIG="/etc/log-locate/config"
 FILE_CONFIG="/etc/log-locate/$(basename "$LOG_FILE").conf"
 
 # Defaults (used if config file is missing or value not set)
-PATTERNS="ERROR WARN FATAL"
-ALERT_PATTERNS="ERROR FATAL 500"
+PATTERNS="[Auth] [Blocked] [KeyRing] [Admin] [Registry] [Inbound] ERROR WARN FATAL"
+ALERT_PATTERNS="ERROR FATAL 500 [Blocked]"
 NOTIFY="telegram"
 TELEGRAM_BOT_TOKEN=""
 TELEGRAM_CHAT_ID=""
