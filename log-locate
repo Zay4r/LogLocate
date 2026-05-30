@@ -29,12 +29,12 @@ RST='\033[0m'
 # Convert a file path to a systemd instance name
 # /etc/project/logs/app.log → etc-project-logs-app.log
 _path_to_instance() {
-  echo "$1" | sed 's|^/||; s|/|-|g'
+  systemd-escape --path "$1"
 }
 
 # Convert a systemd instance name back to a file path
 _instance_to_path() {
-  echo "/$( echo "$1" | sed 's|-|/|g' )"
+  systemd-escape --path --unescape "$1"
 }
 
 _require_root() {
