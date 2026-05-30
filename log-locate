@@ -1,23 +1,13 @@
 #!/usr/bin/env bash
-# /usr/local/bin/log-locate
-#
-# CLI tool for log-locate.
-#
-# Commands:
-#   log-locate add    <file> [--patterns "ERROR user_id=*"]
-#   log-locate remove <file>
-#   log-locate search <file> <keyword>
-#   log-locate range  <file> <from-ts> <to-ts>
-#   log-locate status
-#   log-locate help
+# /usr/local/bin/loglo
 
 set -euo pipefail
 
 GLOBAL_CONFIG="/etc/log-locate/config"
 CONFIG_DIR="/etc/log-locate"
 SERVICE_TEMPLATE="log-locate@"
+SERVICE_DIR="/etc/systemd/system"
 
-# ─── Colours ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GRN='\033[0;32m'
 YLW='\033[1;33m'
@@ -26,28 +16,23 @@ RST='\033[0m'
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
-# Convert a file path to a systemd instance name
-# /etc/project/logs/app.log → etc-project-logs-app.log
+# Use systemd-escape for safe path → instance name conversion.
+# This correctly handles hyphens, spaces, and special chars in paths.
+# /home/deved/vpn-server/logs/server.log → home-deved-vpn\x2dserver-logs-server.log
 _path_to_instance() {
   systemd-escape --path "$1"
 }
 
-# Convert a systemd instance name back to a file path
+# Decode instance name back to real path
 _instance_to_path() {
   systemd-escape --path --unescape "$1"
 }
 
 _require_root() {
   if [[ $EUID -ne 0 ]]; then
-    echo -e "${RED}[log-locate] This command requires root. Run with sudo.${RST}" >&2
+    echo -e "${RED}[loglo] This command requires root. Run with sudo.${RST}" >&2
     exit 1
   fi
-}
-
-_load_config() {
-  PATTERNS="ERROR WARN FATAL"
-  ALERT_PATTERNS="ERROR FATAL 500"
-  [[ -f "$GLOBAL_CONFIG" ]] && source "$GLOBAL_CONFIG"
 }
 
 # ─── Command: add ─────────────────────────────────────────────────────────────
@@ -64,7 +49,7 @@ cmd_add() {
   done
 
   if [[ -z "$file" ]]; then
-    echo -e "${RED}Usage: log-locate add <file> [--patterns \"ERROR user_id=*\"]${RST}" >&2
+    echo -e "${RED}Usage: loglo add <file> [--patterns \"ERROR user_id=*\"]${RST}" >&2
     exit 1
   fi
 
@@ -75,28 +60,51 @@ cmd_add() {
   if [[ -n "$patterns" ]]; then
     local conf_file="${CONFIG_DIR}/$(basename "$abs_file").conf"
     mkdir -p "$CONFIG_DIR"
-    cat > "$conf_file" <<EOF
+    cat > "$conf_file" <<CONF
 # Per-file config for $abs_file
 PATTERNS="$patterns"
 ALERT_PATTERNS="$patterns"
-EOF
-    echo -e "${GRN}[log-locate] Wrote config: $conf_file${RST}"
+CONF
+    echo -e "${GRN}[loglo] Wrote config: $conf_file${RST}"
   fi
 
-  # Enable and start the systemd service instance
   local instance
   instance=$(_path_to_instance "$abs_file")
   local service="${SERVICE_TEMPLATE}${instance}.service"
+  local unit_file="${SERVICE_DIR}/${service}"
 
+  # Write a per-instance service file that passes the real path explicitly.
+  # This avoids relying on instance name decoding entirely.
+  cat > "$unit_file" <<UNIT
+[Unit]
+Description=loglo indexer/alerter for $abs_file
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/log-locate-daemon $abs_file
+Restart=on-failure
+RestartSec=5s
+EnvironmentFile=-/etc/log-locate/config
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=loglo
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+  systemctl daemon-reload
   systemctl enable "$service" 2>/dev/null || true
   systemctl restart "$service"
 
-  echo -e "${GRN}[log-locate] Now watching: $abs_file${RST}"
-  echo -e "${GRN}[log-locate] Index file  : ${abs_file}.idx${RST}"
-  echo -e "${BLU}[log-locate] Service     : $service${RST}"
+  echo -e "${GRN}[loglo] Now watching: $abs_file${RST}"
+  echo -e "${GRN}[loglo] Index file  : ${abs_file}.idx${RST}"
+  echo -e "${BLU}[loglo] Service     : $service${RST}"
   echo ""
   echo "  View logs : journalctl -u $service -f"
-  echo "  Stop      : log-locate remove $abs_file"
+  echo "  Stop      : loglo remove $abs_file"
 }
 
 # ─── Command: remove ──────────────────────────────────────────────────────────
@@ -104,7 +112,7 @@ cmd_remove() {
   _require_root
   local file="$1"
   if [[ -z "$file" ]]; then
-    echo -e "${RED}Usage: log-locate remove <file>${RST}" >&2
+    echo -e "${RED}Usage: loglo remove <file>${RST}" >&2
     exit 1
   fi
 
@@ -116,8 +124,10 @@ cmd_remove() {
 
   systemctl stop    "$service" 2>/dev/null || true
   systemctl disable "$service" 2>/dev/null || true
+  rm -f "${SERVICE_DIR}/${service}"
+  systemctl daemon-reload
 
-  echo -e "${GRN}[log-locate] Stopped watching: $abs_file${RST}"
+  echo -e "${GRN}[loglo] Stopped watching: $abs_file${RST}"
 }
 
 # ─── Command: search ──────────────────────────────────────────────────────────
@@ -126,7 +136,7 @@ cmd_search() {
   local keyword="$2"
 
   if [[ -z "$file" || -z "$keyword" ]]; then
-    echo -e "${RED}Usage: log-locate search <file> <keyword>${RST}" >&2
+    echo -e "${RED}Usage: loglo search <file> <keyword>${RST}" >&2
     exit 1
   fi
 
@@ -135,17 +145,16 @@ cmd_search() {
   local idx_file="${abs_file}.idx"
 
   if [[ ! -f "$idx_file" ]]; then
-    echo -e "${RED}[log-locate] Index not found: $idx_file${RST}" >&2
-    echo "  Run: log-locate add $abs_file"
+    echo -e "${RED}[loglo] Index not found: $idx_file${RST}" >&2
+    echo "  Run: sudo loglo add $abs_file"
     exit 1
   fi
 
   local start_ns
   start_ns=$(date +%s%N)
-
   local count=0
+
   while IFS=$'\t' read -r token line_num timestamp; do
-    # Support prefix wildcard in search too: user_id=*
     local match=false
     if [[ "$keyword" == *"*" ]]; then
       local prefix="${keyword%\*}"
@@ -161,25 +170,20 @@ cmd_search() {
     fi
   done < "$idx_file"
 
-  local end_ns
-  end_ns=$(date +%s%N)
-  local elapsed_ms=$(( (end_ns - start_ns) / 1000000 ))
-
+  local elapsed_ms=$(( ($(date +%s%N) - start_ns) / 1000000 ))
   echo ""
   echo -e "${GRN}$count result(s) for \"$keyword\" — ${elapsed_ms}ms${RST}"
 }
 
 # ─── Command: range ───────────────────────────────────────────────────────────
-# Binary search on the index file to find the start offset of fromTs,
-# then stream from there until toTs is exceeded.
 cmd_range() {
   local file="$1"
   local from_ts="$2"
   local to_ts="$3"
 
   if [[ -z "$file" || -z "$from_ts" || -z "$to_ts" ]]; then
-    echo -e "${RED}Usage: log-locate range <file> <from-ts> <to-ts>${RST}" >&2
-    echo "  Example: log-locate range /etc/project/logs/app.log 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z"
+    echo -e "${RED}Usage: loglo range <file> <from-ts> <to-ts>${RST}" >&2
+    echo "  Example: loglo range /path/to/app.log 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z"
     exit 1
   fi
 
@@ -188,7 +192,7 @@ cmd_range() {
   local idx_file="${abs_file}.idx"
 
   if [[ ! -f "$idx_file" ]]; then
-    echo -e "${RED}[log-locate] Index not found: $idx_file${RST}" >&2
+    echo -e "${RED}[loglo] Index not found: $idx_file${RST}" >&2
     exit 1
   fi
 
@@ -196,15 +200,12 @@ cmd_range() {
   start_ns=$(date +%s%N)
 
   # Binary search to find byte offset where timestamps >= from_ts begin
-  local file_size
+  local file_size lo=0 hi mid ts
   file_size=$(wc -c < "$idx_file")
-  local lo=0
-  local hi=$file_size
-  local mid ts
+  hi=$file_size
 
   while (( lo < hi )); do
     mid=$(( (lo + hi) / 2 ))
-    # Read 512 bytes at mid, skip first (partial) line, read next complete line
     ts=$(dd if="$idx_file" bs=1 skip="$mid" count=512 2>/dev/null \
       | awk -F'\t' 'NR==2 && NF>=3 {print $3; exit}')
 
@@ -215,42 +216,41 @@ cmd_range() {
     fi
   done
 
-  # Stream from the found offset, skip one partial line, then filter range
   local count=0
   dd if="$idx_file" bs=1 skip="$lo" 2>/dev/null \
-    | awk -F'\t' -v from="$from_ts" -v to="$to_ts" '
-        NR==1 { next }          # skip possible partial first line
+    | awk -F'\t' -v from="$from_ts" -v to="$to_ts" \
+        -v YLW='\033[1;33m' -v BLU='\033[0;34m' -v RST='\033[0m' '
+        NR==1 { next }
         NF < 3 { next }
-        $3 > to { exit }
+        $3 > to  { exit }
         $3 >= from {
-          printf "line %-8s %s  %s\n", $2, $3, $1
+          printf YLW "line %-8s" RST " " BLU "%s" RST "  %s\n", $2, $3, $1
           count++
         }
-        END { print count " result(s)" > "/dev/stderr" }
+        END { printf "\n%d result(s)\n", count > "/dev/stderr" }
       '
 
-  local end_ns
-  end_ns=$(date +%s%N)
-  local elapsed_ms=$(( (end_ns - start_ns) / 1000000 ))
-
-  echo ""
+  local elapsed_ms=$(( ($(date +%s%N) - start_ns) / 1000000 ))
   echo -e "${GRN}Range search done — ${elapsed_ms}ms${RST}"
 }
 
 # ─── Command: status ──────────────────────────────────────────────────────────
 cmd_status() {
-  echo -e "${BLU}log-locate — watched files${RST}"
+  echo -e "${BLU}loglo — watched files${RST}"
   echo '─────────────────────────────────────────────────────────────────'
 
   local found=false
   while IFS= read -r unit; do
-    local instance
-    instance=$(echo "$unit" | sed "s|${SERVICE_TEMPLATE}||; s|\.service||")
-    local file_path
-    file_path=$(_instance_to_path "$instance")
+    # Read the ExecStart line from the unit file to get the real path
+    local unit_file="${SERVICE_DIR}/${unit}"
+    local file_path=""
+    if [[ -f "$unit_file" ]]; then
+      file_path=$(grep -oP '(?<=ExecStart=/usr/local/bin/log-locate-daemon ).*' "$unit_file" || true)
+    fi
+    [[ -z "$file_path" ]] && continue
+
     local state
     state=$(systemctl is-active "${unit}" 2>/dev/null || echo "inactive")
-
     local color=$RED
     [[ "$state" == "active" ]] && color=$GRN
 
@@ -260,6 +260,8 @@ cmd_status() {
       local idx_lines
       idx_lines=$(wc -l < "${file_path}.idx")
       printf "             Index: %s entries\n" "$idx_lines"
+    else
+      printf "             Index: not yet created\n"
     fi
 
     found=true
@@ -269,50 +271,37 @@ cmd_status() {
 
   if ! $found; then
     echo "  No files being watched."
-    echo "  Run: log-locate add <file>"
+    echo "  Run: sudo loglo add <file>"
   fi
   echo '─────────────────────────────────────────────────────────────────'
 }
 
 # ─── Command: help ────────────────────────────────────────────────────────────
 cmd_help() {
-  cat <<EOF
+  cat <<HELP
 
 ${BLU}log-locate${RST} — log indexer and alerter
 
 Usage:
-  log-locate add    <file> [--patterns "ERROR user_id=* request_id=*"]
-  log-locate remove <file>
-  log-locate search <file> <keyword>
-  log-locate range  <file> <from-ts> <to-ts>
-  log-locate status
-  log-locate help
+  sudo loglo add    <file> [--patterns "ERROR user_id=* request_id=*"]
+  sudo loglo remove <file>
+       loglo search <file> <keyword>
+       loglo range  <file> <from-ts> <to-ts>
+       loglo status
+       loglo help
 
 Examples:
-  # Start watching a log file with default patterns (ERROR WARN FATAL)
-  sudo log-locate add /etc/project/logs/app.log
+  sudo loglo add /home/deved/vpn-server/logs/server.log
+  sudo loglo add /home/deved/vpn-server/logs/server.log --patterns "ERROR WARN user_id=*"
 
-  # Watch with custom patterns
-  sudo log-locate add /etc/project/logs/app.log --patterns "ERROR WARN user_id=* request_id=*"
+  loglo search /home/deved/vpn-server/logs/server.log "ERROR"
+  loglo search /home/deved/vpn-server/logs/server.log "user_id=99999"
 
-  # Search the index instantly
-  log-locate search /etc/project/logs/app.log "user_id=87904"
-  log-locate search /etc/project/logs/app.log "ERROR"
+  loglo range /home/deved/vpn-server/logs/server.log 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z
 
-  # Find all entries in a time window
-  log-locate range /etc/project/logs/app.log 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z
+  loglo status
 
-  # See all watched files and their status
-  log-locate status
-
-Config files:
-  /etc/log-locate/config            Global defaults
-  /etc/log-locate/<filename>.conf   Per-file overrides
-
-Index files:
-  Stored next to the log file as <logfile>.idx
-
-EOF
+HELP
 }
 
 # ─── Router ───────────────────────────────────────────────────────────────────
@@ -327,7 +316,7 @@ case "$COMMAND" in
   status) cmd_status      ;;
   help|--help|-h) cmd_help ;;
   *)
-    echo -e "${RED}[log-locate] Unknown command: $COMMAND${RST}" >&2
+    echo -e "${RED}[loglo] Unknown command: $COMMAND${RST}" >&2
     cmd_help
     exit 1
     ;;

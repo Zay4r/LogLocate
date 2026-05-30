@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# uninstall.sh — log-locate uninstaller
+# uninstall.sh — loglo uninstaller
 #
 # Usage (remote):
 #   curl -fsSL https://raw.githubusercontent.com/Zay4r/LogLocate/main/uninstall.sh | sudo bash
@@ -21,10 +21,10 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-echo -e "${BLU}Uninstalling log-locate...${RST}"
+echo -e "${BLU}Uninstalling loglo...${RST}"
 
 # ─── Stop and disable all running instances ───────────────────────────────────
-echo "  Stopping all log-locate services..."
+echo "  Stopping all loglo services..."
 while IFS= read -r unit; do
   [[ -z "$unit" ]] && continue
   echo "  Stopping: $unit"
@@ -36,10 +36,10 @@ done < <(systemctl list-units --type=service --all \
 
 # ─── Remove binaries ──────────────────────────────────────────────────────────
 echo "  Removing binaries..."
-rm -f /usr/local/bin/log-locate
-rm -f /usr/local/bin/log-locate-daemon
-echo "  Removed: /usr/local/bin/log-locate"
-echo "  Removed: /usr/local/bin/log-locate-daemon"
+rm -f /usr/local/bin/loglo
+rm -f /usr/local/bin/loglo-daemon
+echo "  Removed: /usr/local/bin/loglo"
+echo "  Removed: /usr/local/bin/loglo-daemon"
 
 # ─── Remove systemd service ───────────────────────────────────────────────────
 echo "  Removing systemd service..."
@@ -58,12 +58,12 @@ echo ""
 echo -e "${YLW}Index files (.idx, .batch, .cooldown) are left next to your log files.${RST}"
 echo -e "${YLW}Remove them manually if you no longer need them:${RST}"
 echo ""
-echo "  find / -name '*.idx' -path '*.log.idx' 2>/dev/null"
-echo "  find / -name '*.batch' -path '*.log.batch' 2>/dev/null"
+echo "  find / -name '*.log.idx' 2>/dev/null"
+echo "  find / -name '*.log.batch' 2>/dev/null"
 echo ""
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
-echo -e "${GRN}log-locate uninstalled successfully.${RST}"
+echo -e "${GRN}loglo uninstalled successfully.${RST}"
 echo ""
 echo "To reinstall:"
 echo "  curl -fsSL https://raw.githubusercontent.com/Zay4r/LogLocate/main/install.sh | sudo bash"

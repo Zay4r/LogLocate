@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# install.sh — log-locate installer
+# install.sh — loglo installer
 #
-# Usage (remote — pipe directly from GitHub):
+# Usage (remote):
 #   curl -fsSL https://raw.githubusercontent.com/Zay4r/LogLocate/main/install.sh | sudo bash
 #
-# Usage (local — after cloning the repo):
+# Usage (local):
 #   sudo bash install.sh
 
 set -euo pipefail
@@ -25,7 +25,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-echo -e "${BLU}Installing log-locate...${RST}"
+echo -e "${BLU}Installing loglo...${RST}"
 
 # ─── Check dependencies ───────────────────────────────────────────────────────
 for dep in curl tail awk grep dd systemctl; do
@@ -36,8 +36,6 @@ for dep in curl tail awk grep dd systemctl; do
 done
 
 # ─── Detect: running locally or piped from curl ──────────────────────────────
-# When piped via curl | bash, BASH_SOURCE[0] is empty or just "bash"
-# so we can't rely on it — always download from GitHub in that case.
 if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "bash" && -f "$(dirname "${BASH_SOURCE[0]}")/log-locate" ]]; then
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   USE_LOCAL=true
@@ -60,14 +58,14 @@ _get_file() {
 
 # ─── Install binaries ─────────────────────────────────────────────────────────
 echo "  Installing binaries..."
-_get_file "log-locate"        "${BIN_DIR}/log-locate"
-_get_file "log-locate-daemon" "${BIN_DIR}/log-locate-daemon"
+_get_file "log-locate"        "${BIN_DIR}/loglo"
+_get_file "log-locate-daemon" "${BIN_DIR}/loglo-daemon"
 
-chmod +x "${BIN_DIR}/log-locate"
-chmod +x "${BIN_DIR}/log-locate-daemon"
+chmod +x "${BIN_DIR}/loglo"
+chmod +x "${BIN_DIR}/loglo-daemon"
 
-echo "  Installed: ${BIN_DIR}/log-locate"
-echo "  Installed: ${BIN_DIR}/log-locate-daemon"
+echo "  Installed: ${BIN_DIR}/loglo"
+echo "  Installed: ${BIN_DIR}/loglo-daemon"
 
 # ─── Install systemd service ──────────────────────────────────────────────────
 echo "  Installing systemd service..."
@@ -87,7 +85,7 @@ fi
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${GRN}log-locate installed successfully!${RST}"
+echo -e "${GRN}loglo installed successfully!${RST}"
 echo ""
 echo "Next steps:"
 echo ""
@@ -95,14 +93,14 @@ echo "  1. Edit the config:"
 echo "     nano /etc/log-locate/config"
 echo ""
 echo "  2. Start watching a log file:"
-echo "     sudo log-locate add /etc/project/logs/app.log"
+echo "     sudo loglo add /home/deved/vpn-server/logs/server.log"
 echo ""
 echo "  3. Search the index:"
-echo "     log-locate search /etc/project/logs/app.log \"user_id=87904\""
+echo "     loglo search /home/deved/vpn-server/logs/server.log \"user_id=87904\""
 echo ""
 echo "  4. Range search:"
-echo "     log-locate range /etc/project/logs/app.log 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z"
+echo "     loglo range /home/deved/vpn-server/logs/server.log 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z"
 echo ""
 echo "  5. View all watched files:"
-echo "     log-locate status"
+echo "     loglo status"
 echo ""

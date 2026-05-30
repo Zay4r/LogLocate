@@ -22,14 +22,14 @@ fi
 LOG_FILE="$1"
 
 if [[ ! -f "$LOG_FILE" ]]; then
-  echo "[log-locate-daemon] Waiting for log file to appear: $LOG_FILE"
+  echo "[loglo-daemon] Waiting for log file to appear: $LOG_FILE"
   # Wait up to 60s for the file to be created (app may not have started yet)
   for i in $(seq 1 60); do
     sleep 1
     [[ -f "$LOG_FILE" ]] && break
   done
   if [[ ! -f "$LOG_FILE" ]]; then
-    echo "[log-locate-daemon] File never appeared: $LOG_FILE" >&2
+    echo "[loglo-daemon] File never appeared: $LOG_FILE" >&2
     exit 1
   fi
 fi
@@ -61,11 +61,11 @@ IDX_FILE="${LOG_FILE}.idx"
 BATCH_FILE="${LOG_FILE}.batch"   # temp file to collect alert lines
 LOCK_FILE="${LOG_FILE}.cooldown" # exists during cooldown period
 
-echo "[log-locate-daemon] Watching : $LOG_FILE"
-echo "[log-locate-daemon] Index    : $IDX_FILE"
-echo "[log-locate-daemon] Patterns : $PATTERNS"
-echo "[log-locate-daemon] Alerts   : $ALERT_PATTERNS"
-echo "[log-locate-daemon] Notify   : $NOTIFY"
+echo "[loglo-daemon] Watching : $LOG_FILE"
+echo "[loglo-daemon] Index    : $IDX_FILE"
+echo "[loglo-daemon] Patterns : $PATTERNS"
+echo "[loglo-daemon] Alerts   : $ALERT_PATTERNS"
+echo "[loglo-daemon] Notify   : $NOTIFY"
 
 # ─── Count existing lines so new line numbers are accurate ────────────────────
 LINE_COUNT=0
@@ -73,10 +73,10 @@ if [[ -f "$IDX_FILE" ]]; then
   # Resume from last indexed line number
   LAST=$(awk -F'\t' 'NF>=2 {n=$2+0} END {print n+0}' "$IDX_FILE")
   LINE_COUNT=$LAST
-  echo "[log-locate-daemon] Resuming from line $LINE_COUNT"
+  echo "[loglo-daemon] Resuming from line $LINE_COUNT"
 else
   # First run — index the existing file from the beginning
-  echo "[log-locate-daemon] First run — indexing existing file..."
+  echo "[loglo-daemon] First run — indexing existing file..."
   _index_existing
 fi
 
@@ -88,7 +88,7 @@ _index_existing() {
     _index_line "$line" "$line_num"
   done < "$LOG_FILE"
   LINE_COUNT=$line_num
-  echo "[log-locate-daemon] Indexed $LINE_COUNT existing lines."
+  echo "[loglo-daemon] Indexed $LINE_COUNT existing lines."
 }
 
 # ─── Token matching ───────────────────────────────────────────────────────────
@@ -144,7 +144,7 @@ _index_line() {
 _send_telegram() {
   local message="$1"
   if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
-    echo "[log-locate-daemon] Telegram not configured, skipping." >&2
+    echo "[loglo-daemon] Telegram not configured, skipping." >&2
     return
   fi
   curl -s -X POST \
@@ -161,7 +161,7 @@ _send_email() {
   local subject="$1"
   local body="$2"
   if [[ -z "$SMTP_USER" || -z "$SMTP_PASS" || -z "$ALERT_TO" ]]; then
-    echo "[log-locate-daemon] Email not configured, skipping." >&2
+    echo "[loglo-daemon] Email not configured, skipping." >&2
     return
   fi
   local from="${ALERT_FROM:-$SMTP_USER}"
@@ -214,7 +214,7 @@ Time: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 ${body}
 <i>${count} alert(s)</i>"
 
-  echo "[log-locate-daemon] Sending alert — $count line(s) matched"
+  echo "[loglo-daemon] Sending alert — $count line(s) matched"
 
   case "$NOTIFY" in
     telegram) _send_telegram "$tg_message" ;;
@@ -231,7 +231,7 @@ ${body}
   (
     sleep "$COOLDOWN_SECONDS"
     rm -f "$LOCK_FILE"
-    echo "[log-locate-daemon] Cooldown over for $LOG_FILE"
+    echo "[loglo-daemon] Cooldown over for $LOG_FILE"
   ) &
 }
 
@@ -270,7 +270,7 @@ _process_line() {
 }
 
 # ─── Main watch loop ──────────────────────────────────────────────────────────
-echo "[log-locate-daemon] Ready — tailing new lines..."
+echo "[loglo-daemon] Ready — tailing new lines..."
 
 # tail -F follows the file even across log rotations
 tail -n 0 -F "$LOG_FILE" 2>/dev/null | while IFS= read -r line || [[ -n "$line" ]]; do
