@@ -11,7 +11,11 @@
 # Index file format (tab-separated):
 #   <token>\t<lineNumber>\t<timestamp>\n
 
-set -euo pipefail
+# Deliberately NOT using set -e/-o pipefail — this is a long-running
+# tail loop where _matches_pattern legitimately returns 1 on non-matching lines
+# and emojis/special chars can cause unexpected subshell exits. Each function
+# handles its own errors explicitly instead.
+set -u
 
 # ─── Args ─────────────────────────────────────────────────────────────────────
 if [[ $# -lt 1 ]]; then
