@@ -292,8 +292,7 @@ cmd_range() {
     fi
   done
 
-  dd if="$idx_file" bs=1 skip="$lo" 2>/dev/null \
-    | awk -F'\t' -v from="$from_ts" -v to="$to_ts" \
+    awk -F'\t' -v from="$from_ts" -v to="$to_ts" \
       -v YLW='\033[1;33m' -v BLU='\033[0;34m' -v RST='\033[0m' '
       NF < 3 { next }
       $3 > to  { next }
