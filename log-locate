@@ -81,19 +81,21 @@ cmd_add() {
   _require_root
   local file=""
   local name=""
-  local patterns=""
-  local input="" 
+  local index_patterns=""
+  local alert_patterns=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --name)     name="$2";     shift 2 ;;
-      --patterns) patterns="$2"; shift 2 ;;
-      *)          file="$1";     shift   ;;
+      --name)     name="$2";           shift 2 ;;
+      --index)    index_patterns="$2"; shift 2 ;;
+      --alert)    alert_patterns="$2"; shift 2 ;;
+      --patterns) index_patterns="$2"; shift 2 ;;
+      *)          file="$1";           shift   ;;
     esac
   done
 
   if [[ -z "$file" ]]; then
-    echo -e "${RED}Usage: sudo loglo add <file> [--name myapp] [--patterns \"ERROR user_id=*\"]${RST}" >&2
+    echo -e "${RED}Usage: sudo loglo add <file> [--name myapp] [--index \"ip=* build=*\"] [--alert \"DENIED ALLOWED\"]${RST}" >&2
     exit 1
   fi
 
@@ -118,14 +120,14 @@ fi
   fi
 
   # Write per-file config if custom patterns were given
-  if [[ -n "$patterns" ]]; then
+   if [[ -n "$index_patterns" || -n "$alert_patterns" ]]; then
     local conf_file="${CONFIG_DIR}/${name}.conf"
     mkdir -p "$CONFIG_DIR"
-    cat > "$conf_file" <<CONF
-# Per-file config for $abs_file (name: $name)
-PATTERNS="$patterns"
-ALERT_PATTERNS="$patterns"
-CONF
+    {
+      echo "# Per-file config for $abs_file (name: $name)"
+      [[ -n "$index_patterns" ]] && echo "PATTERNS=\"$index_patterns\""
+      [[ -n "$alert_patterns" ]] && echo "ALERT_PATTERNS=\"$alert_patterns\""
+    } > "$conf_file"
     echo -e "${GRN}[loglo] Wrote config: $conf_file${RST}"
   fi
 
