@@ -85,7 +85,7 @@ _index_existing() {
   local line_num=0
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$(( line_num + 1 ))
-    _index_line "$line" "$line_num"
+    _index_line "$line" "$line_num" || true
   done < "$LOG_FILE"
   LINE_COUNT=$line_num
   echo "[loglo-daemon] Indexed $LINE_COUNT existing lines."
@@ -131,14 +131,19 @@ _index_line() {
   local timestamp
   timestamp=$(_extract_timestamp "$line")
 
-  # Split line into tokens on whitespace
+  # Split line into tokens on whitespace.
+  # _matches_pattern returns 1 on no-match; the explicit 'if' already handles
+  # that, but under set -e the non-zero return can still escape when the caller
+  # is inside a pipeline. Append '|| true' to every call site so failures never
+  # propagate, and close the function with an explicit 'return 0'.
   local token_matched=false
   for token in $line; do
-    if _matches_pattern "$token" "$PATTERNS"; then
+    if _matches_pattern "$token" "$PATTERNS" 2>/dev/null; then
       printf '%s\t%s\t%s\n' "$token" "$line_num" "$timestamp" >> "$IDX_FILE"
       token_matched=true
     fi
   done
+  return 0
 }
 
 # ─── Alert: send Telegram message ────────────────────────────────────────────
@@ -251,7 +256,7 @@ _process_line() {
 
   local alerted=false
   for token in $line; do
-    if _matches_pattern "$token" "$ALERT_PATTERNS"; then
+    if _matches_pattern "$token" "$ALERT_PATTERNS" 2>/dev/null; then
       printf '#%s keyword="%s"\n   %s\n\n' \
         "$(( $(wc -l < "$BATCH_FILE" 2>/dev/null || echo 0) + 1 ))" \
         "$token" \
@@ -268,6 +273,7 @@ _process_line() {
       _flush_alerts
     ) &
   fi
+  return 0
 }
 
 # ─── Main watch loop ──────────────────────────────────────────────────────────
@@ -279,5 +285,5 @@ echo "[loglo-daemon] Ready — tailing new lines..."
 # tail -F follows the file even across log rotations
 tail -n 0 -F "$LOG_FILE" 2>/dev/null | while IFS= read -r line || [[ -n "$line" ]]; do
   [[ -z "${line// }" ]] && continue  # skip blank lines
-  _process_line "$line"
+  _process_line "$line" || true
 done
