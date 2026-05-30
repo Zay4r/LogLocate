@@ -229,6 +229,7 @@ cmd_search() {
   local start_ns
   start_ns=$(date +%s%N)
   local count=0
+  local last_line_num=""
 
   while IFS=$'\t' read -r token line_num timestamp; do
     local match=false
@@ -239,7 +240,9 @@ cmd_search() {
       [[ "$token" == "$keyword" ]] && match=true
     fi
 
-      if $match; then
+    if $match; then
+      [[ "$line_num" == "$last_line_num" ]] && continue
+      last_line_num="$line_num"
       local log_line
       log_line=$(sed -n "${line_num}p" "$abs_file" 2>/dev/null || echo "(line unavailable)")
       printf "${YLW}line %-8s${RST} ${BLU}%s${RST}\n  %s\n" \
@@ -252,7 +255,6 @@ cmd_search() {
   echo ""
   echo -e "${GRN}$count result(s) for \"$keyword\" — ${elapsed_ms}ms${RST}"
 }
-
 # ─── Command: range ───────────────────────────────────────────────────────────
 cmd_range() {
   local input="$1"
@@ -277,19 +279,23 @@ cmd_range() {
   local start_ns
   start_ns=$(date +%s%N)
 
-  awk -F'\t' -v from="$from_ts" -v to="$to_ts" \
-      -v YLW='\033[1;33m' -v BLU='\033[0;34m' -v RST='\033[0m' '
-      NF < 3 { next }
-      $3 > to  { next }
-      $3 >= from {
-        printf YLW "line %-8s" RST " " BLU "%s" RST "  %s\n", $2, $3, $1
-        count++
-      }
-      END { printf "\n%d result(s)\n", count+0 }
-    ' "$idx_file"
+  local count=0
+  local last_line_num=""
+  while IFS=$'\t' read -r token line_num timestamp; do
+    [[ -z "$token" || -z "$line_num" || -z "$timestamp" ]] && continue
+    [[ "$timestamp" < "$from_ts" ]] && continue
+    [[ "$timestamp" > "$to_ts" ]]   && continue
+    [[ "$line_num" == "$last_line_num" ]] && continue
+    last_line_num="$line_num"
+    local log_line
+    log_line=$(sed -n "${line_num}p" "$abs_file" 2>/dev/null || echo "(line unavailable)")
+    printf "${YLW}line %-8s${RST} ${BLU}%s${RST}\n  %s\n" "$line_num" "$timestamp" "$log_line"
+    count=$(( count + 1 ))
+  done < "$idx_file"
 
   local elapsed_ms=$(( ($(date +%s%N) - start_ns) / 1000000 ))
-  echo -e "${GRN}Range search done — ${elapsed_ms}ms${RST}"
+  echo ""
+  echo -e "${GRN}$count result(s) — ${elapsed_ms}ms${RST}"
 }
 
 # ─── Command: status ──────────────────────────────────────────────────────────
