@@ -277,22 +277,7 @@ cmd_range() {
   local start_ns
   start_ns=$(date +%s%N)
 
-  local file_size lo=0 hi mid ts
-  file_size=$(wc -c < "$idx_file")
-  hi=$file_size
-
-  while (( lo < hi )); do
-    mid=$(( (lo + hi) / 2 ))
-    ts=$(dd if="$idx_file" bs=1 skip="$mid" count=512 2>/dev/null \
-      | awk -F'\t' 'NR==2 && NF>=3 {print $3; exit}')
-    if [[ -z "$ts" || "$ts" < "$from_ts" ]]; then
-      lo=$(( mid + 1 ))
-    else
-      hi=$mid
-    fi
-  done
-
-    awk -F'\t' -v from="$from_ts" -v to="$to_ts" \
+  awk -F'\t' -v from="$from_ts" -v to="$to_ts" \
       -v YLW='\033[1;33m' -v BLU='\033[0;34m' -v RST='\033[0m' '
       NF < 3 { next }
       $3 > to  { next }
@@ -300,7 +285,7 @@ cmd_range() {
         printf YLW "line %-8s" RST " " BLU "%s" RST "  %s\n", $2, $3, $1
         count++
       }
-      END { printf "\n%d result(s)\n", count }
+      END { printf "\n%d result(s)\n", count+0 }
     ' "$idx_file"
 
   local elapsed_ms=$(( ($(date +%s%N) - start_ns) / 1000000 ))
