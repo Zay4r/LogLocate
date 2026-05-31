@@ -212,8 +212,10 @@ _flush_alerts() {
       local ts
       ts=$(echo "$log_line" | grep -oP '\d{2}:\d{2}:\d{2}' | head -1 || true)
 
+      local kw_pattern
+      kw_pattern=$(echo "$ALERT_PATTERNS" | tr ' ' '|')
       local kw
-      kw=$(echo "$log_line" | grep -oP '\b(DENIED|ALLOWED|REQUEST|BLOCKED|UNBLOCKED|ERROR|FATAL|WARN)\b' | head -1 || true)
+      kw=$(echo "$log_line" | grep -oP "\b(${kw_pattern})\b" | head -1 || true)
       [[ -z "$subject_keyword" && -n "$kw" ]] && subject_keyword="$kw"
 
       local ip
