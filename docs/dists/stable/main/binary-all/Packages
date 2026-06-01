@@ -5,9 +5,9 @@ Maintainer: Zay4r <zayarkasparov@gmail.com>
 Depends: bash, curl, coreutils, systemd, gawk
 Filename: pool/main/loglo_1.0.0.deb
 Size: 8940
-MD5sum: 5993dc9973ab4129c77cda6c161027a1
-SHA1: a5a01dfdc585d3fe4cdc5785b3d622b49b051a91
-SHA256: 624ae65543616d51d12c95cbbce6e01f5f46cbd42dfcd78f96a56966b02308a5
+MD5sum: 2188be5d9b8fc24b61ad9bf26c028a8a
+SHA1: 94f484a653c5b94179217198d39ca8991bd4a649
+SHA256: 146d4422ab2609c574eb6f7827a46941455b8c81e2420f6145d627b55472e634
 Section: utils
 Priority: optional
 Homepage: https://github.com/Zay4r/LogLocate

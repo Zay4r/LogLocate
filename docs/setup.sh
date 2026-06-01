@@ -62,11 +62,69 @@ echo -e "  ${GRN}✓ Package list updated.${RST}"
 # ─── apt install ──────────────────────────────────────────────────────────────
 echo "  Installing loglo..."
 echo ""
-apt-get install -y loglo
+# Run apt with stdin explicitly from /dev/tty so our later prompts aren't
+# contaminated by the pipe, and apt's own interactive output goes to the tty.
+apt-get install -y loglo </dev/tty
+
+# ─── Telegram setup (must run here, AFTER apt exits — not inside postinst) ───
+# When piped through curl | bash, stdin is the pipe, so we read via /dev/tty.
+CONFIG_FILE="/etc/log-locate/config"
+
+echo ""
+echo -e "${BLU}━━━  Telegram Alert Setup  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+echo "  loglo can send alerts to a Telegram chat."
+echo "  Leave blank to skip — edit /etc/log-locate/config to configure later."
+echo ""
+
+tg_token=""
+tg_chat=""
+
+_read_tty() {
+  local __var="$1" __prompt="$2" __val=""
+  printf '%s' "$__prompt" >/dev/tty
+  # Disable bracket-paste mode so terminal escape sequences don't leak in,
+  # then re-enable it when done.
+  printf '\e[?2004l' >/dev/tty
+  { IFS= read -r __val </dev/tty; } 2>/dev/null || true
+  printf '\e[?2004h' >/dev/tty
+  # Strip any stray escape/bracket-paste sequences that slipped through
+  __val=$(printf '%s' "$__val" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g; s/\[200~//g; s/~$//g')
+  printf -v "$__var" '%s' "${__val:-}"
+}
+
+if [[ -e /dev/tty ]]; then
+  _read_tty tg_token "  Enter TELEGRAM_BOT_TOKEN (or press Enter to skip): "
+  _read_tty tg_chat  "  Enter TELEGRAM_CHAT_ID   (or press Enter to skip): "
+fi
+
+if [[ -n "$tg_token" || -n "$tg_chat" ]]; then
+  if [[ -n "$tg_token" ]]; then
+    sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=\"${tg_token}\"|" "$CONFIG_FILE"
+    echo -e "  ${GRN}✓ TELEGRAM_BOT_TOKEN saved.${RST}"
+  fi
+  if [[ -n "$tg_chat" ]]; then
+    sed -i "s|^TELEGRAM_CHAT_ID=.*|TELEGRAM_CHAT_ID=\"${tg_chat}\"|" "$CONFIG_FILE"
+    echo -e "  ${GRN}✓ TELEGRAM_CHAT_ID saved.${RST}"
+  fi
+else
+  echo "  Skipped — edit /etc/log-locate/config to add credentials later."
+fi
+echo -e "${BLU}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GRN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
 echo -e "${GRN}  loglo installed! Future updates: sudo apt upgrade${RST}"
 echo -e "${GRN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+echo ""
+echo "Next steps:"
+echo ""
+echo "  Start watching a log file:"
+echo "    sudo loglo add /var/log/myapp/server.log"
+echo ""
+echo "  Search:"
+echo "    loglo search server \"ERROR\""
+echo ""
+echo "  Status:"
+echo "    loglo status"
 echo ""

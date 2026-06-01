@@ -105,9 +105,11 @@ mkdir -p "$DISTS_DIR"
 cp "${BUILD_DIR}/${DEB_NAME}" "${POOL_DIR}/${DEB_NAME}"
 echo -e "${GRN}  Copied .deb to pool.${RST}"
 
-# ── Copy setup.sh into docs so it's served by GitHub Pages ───────────────────
-cp "${SCRIPT_DIR}/setup.sh" "${DOCS_DIR}/setup.sh"
+# ── Copy setup.sh and uninstall.sh into docs so they're served by GitHub Pages
+cp "${SCRIPT_DIR}/setup.sh"     "${DOCS_DIR}/setup.sh"
+cp "${SCRIPT_DIR}/uninstall.sh" "${DOCS_DIR}/uninstall.sh"
 echo -e "${GRN}  Copied: setup.sh → docs/setup.sh${RST}"
+echo -e "${GRN}  Copied: uninstall.sh → docs/uninstall.sh${RST}"
 
 # ── Generate Packages index ───────────────────────────────────────────────────
 cd "$DOCS_DIR"
