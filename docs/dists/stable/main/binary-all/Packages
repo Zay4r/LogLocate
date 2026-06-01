@@ -1,0 +1,17 @@
+Package: loglo
+Version: 1.0.0
+Architecture: all
+Maintainer: Zay4r <your@email.com>
+Depends: bash, curl, coreutils, systemd, gawk
+Filename: pool/main/loglo_1.0.0.deb
+Size: 8964
+MD5sum: f282a30311afd708ff41535a71093654
+SHA1: 17e45a64e51335026c86f6cb1006828eff541692
+SHA256: da747cb120d8e9e11fb87a3217102fc257a57c85f791b3d93f3b5958efe063a1
+Section: utils
+Priority: optional
+Homepage: https://github.com/Zay4r/LogLocate
+Description: Log indexer and alerter
+ loglo watches log files, indexes matching tokens into a fast .idx file,
+ and sends Telegram or email alerts when alert patterns are matched.
+
