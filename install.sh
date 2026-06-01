@@ -5,10 +5,10 @@
 #   /usr/local/bin/log-locate-daemon  — file watcher/alerter daemon
 #   /usr/local/bin/loglo              — CLI (add / remove / status / logs / test-alert)
 #   /etc/systemd/system/log-locate@.service
-#   /etc/log-locate/config            — not overwritten if already exists
+#   /etc/log-locate/config            — written via interactive wizard
 #
 # Usage (remote):
-#   curl -fsSL https://raw.githubusercontent.com/Zay4r/LogLocate/main/install.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/Zay4r/LogLocate/v2/install.sh | sudo bash
 #
 # Usage (local):
 #   sudo bash install.sh
@@ -17,13 +17,15 @@ set -euo pipefail
 
 RED='\033[0;31m'
 GRN='\033[0;32m'
+YLW='\033[1;33m'
 BLU='\033[0;34m'
+DIM='\033[2m'
 RST='\033[0m'
 
 BIN_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/log-locate"
 SERVICE_DIR="/etc/systemd/system"
-REPO_RAW="https://raw.githubusercontent.com/Zay4r/LogLocate/main"
+REPO_RAW="https://raw.githubusercontent.com/Zay4r/LogLocate/v2"
 
 # ─── Must run as root ─────────────────────────────────────────────────────────
 if [[ $EUID -ne 0 ]]; then
@@ -103,11 +105,9 @@ _usage() {
   exit 1
 }
 
-# Use systemd-escape for correct, lossless path → instance name conversion
 _path_to_instance() {
   local path
   path="$(realpath "$1")"
-  # systemd-escape --path handles special chars (spaces, dashes, etc.) correctly
   systemd-escape --path "$path"
 }
 
@@ -138,15 +138,12 @@ case "$CMD" in
     INSTANCE="$(_path_to_instance "$FILE")"
     UNIT="log-locate@${INSTANCE}.service"
 
-    # Warn if file doesn't exist yet (daemon will wait, but user should know)
     if [[ ! -f "$FILE" ]]; then
       echo -e "${YLW}Warning: $FILE does not exist yet. The daemon will start watching once it is created.${RST}"
     fi
 
-    # Grant the log-locate user read access to the file's directory and the file itself
     FILE_DIR="$(dirname "$FILE")"
     if ! sudo -u log-locate test -r "$FILE_DIR" 2>/dev/null; then
-      echo -e "${YLW}Note: granting log-locate user read access to $FILE_DIR${RST}"
       setfacl -m u:log-locate:rx "$FILE_DIR" 2>/dev/null || \
         chmod o+rx "$FILE_DIR" 2>/dev/null || \
         echo -e "${YLW}  Could not set permissions on $FILE_DIR — you may need to do this manually.${RST}"
@@ -253,19 +250,15 @@ case "$CMD" in
       if [[ -z "${SMTP_USER:-}" || -z "${SMTP_PASS:-}" || -z "${ALERT_TO:-}" ]]; then
         echo -e "${RED}Email not configured (SMTP_USER / SMTP_PASS / ALERT_TO missing in config)${RST}" >&2
       else
-        if command -v curl &>/dev/null; then
-          curl -sf \
-            --url "smtp://${SMTP_HOST}:${SMTP_PORT}" \
-            --ssl-reqd \
-            --mail-from "${ALERT_FROM}" \
-            --mail-rcpt "${ALERT_TO}" \
-            --user "${SMTP_USER}:${SMTP_PASS}" \
-            -T <(echo -e "From: ${ALERT_FROM}\nTo: ${ALERT_TO}\nSubject: [log-locate] Test Alert\n\n${MSG}") \
-            && echo -e "${GRN}Email: test message sent successfully.${RST}" && SENT=1 \
-            || echo -e "${RED}Email: failed to send.${RST}" >&2
-        else
-          echo -e "${RED}curl not found — cannot send test email.${RST}" >&2
-        fi
+        curl -sf \
+          --url "smtp://${SMTP_HOST}:${SMTP_PORT}" \
+          --ssl-reqd \
+          --mail-from "${ALERT_FROM}" \
+          --mail-rcpt "${ALERT_TO}" \
+          --user "${SMTP_USER}:${SMTP_PASS}" \
+          -T <(echo -e "From: ${ALERT_FROM}\nTo: ${ALERT_TO}\nSubject: [log-locate] Test Alert\n\n${MSG}") \
+          && echo -e "${GRN}Email: test message sent successfully.${RST}" && SENT=1 \
+          || echo -e "${RED}Email: failed to send.${RST}" >&2
       fi
     fi
 
@@ -288,18 +281,141 @@ _get_file "log-locate_.service" "${SERVICE_DIR}/log-locate@.service"
 systemctl daemon-reload
 echo "  Installed: ${SERVICE_DIR}/log-locate@.service"
 
-# ─── Write default config (don't overwrite existing) ─────────────────────────
+# ─── Interactive config wizard ────────────────────────────────────────────────
 mkdir -p "$CONFIG_DIR"
 chmod 750 "$CONFIG_DIR"
 chown root:log-locate "$CONFIG_DIR"
-if [[ ! -f "${CONFIG_DIR}/config" ]]; then
-  echo "  Writing default config..."
-  _get_file "config" "${CONFIG_DIR}/config"
+
+# Re-open stdin from the terminal so read works even when piped from curl
+exec </dev/tty
+
+_ask() {
+  # _ask VARNAME "Prompt text" "default"
+  local var="$1" prompt="$2" default="$3"
+  local input
+  echo -ne "  ${prompt}${DIM}${default:+ [$default]}${RST}: "
+  read -r input
+  # Use default if user pressed enter with no input
+  printf -v "$var" '%s' "${input:-$default}"
+}
+
+_ask_secret() {
+  local var="$1" prompt="$2"
+  local input
+  echo -ne "  ${prompt}: "
+  read -rs input
+  echo ""
+  printf -v "$var" '%s' "$input"
+}
+
+CONFIG_EXISTS=false
+[[ -f "${CONFIG_DIR}/config" ]] && CONFIG_EXISTS=true
+
+if $CONFIG_EXISTS; then
+  echo ""
+  echo -e "${YLW}Config already exists at ${CONFIG_DIR}/config${RST}"
+  echo -ne "  Re-run the setup wizard? [y/N]: "
+  read -r REDO </dev/tty
+  [[ "${REDO,,}" != "y" ]] && {
+    echo "  Skipping — keeping existing config."
+    CONFIG_DONE=true
+  }
+fi
+
+if [[ "${CONFIG_DONE:-false}" != "true" ]]; then
+  echo ""
+  echo -e "${BLU}─── Configuration wizard ────────────────────────────────────────${RST}"
+  echo ""
+
+  # Notification channel
+  echo -e "  Notification channel:"
+  echo -e "    ${DIM}1) telegram${RST}"
+  echo -e "    ${DIM}2) email${RST}"
+  echo -e "    ${DIM}3) both${RST}"
+  echo -ne "  Choose [1/2/3] ${DIM}[1]${RST}: "
+  read -r NOTIFY_CHOICE
+  case "${NOTIFY_CHOICE:-1}" in
+    2) NOTIFY="email" ;;
+    3) NOTIFY="both" ;;
+    *) NOTIFY="telegram" ;;
+  esac
+
+  # Alert patterns
+  _ask ALERT_PATTERNS "Alert patterns (space-separated)" "ERROR FATAL WARN"
+
+  # Batching / cooldown
+  _ask BATCH_SECONDS   "Batch window in seconds" "10"
+  _ask COOLDOWN_SECONDS "Cooldown after alert in seconds" "300"
+
+  # Telegram
+  TELEGRAM_BOT_TOKEN=""
+  TELEGRAM_CHAT_ID=""
+  if [[ "$NOTIFY" == "telegram" || "$NOTIFY" == "both" ]]; then
+    echo ""
+    echo -e "  ${BLU}Telegram settings${RST}"
+    _ask_secret TELEGRAM_BOT_TOKEN "Bot token"
+    _ask        TELEGRAM_CHAT_ID   "Chat ID" ""
+  fi
+
+  # Email
+  SMTP_HOST="smtp.gmail.com"
+  SMTP_PORT="587"
+  SMTP_USER=""
+  SMTP_PASS=""
+  ALERT_FROM=""
+  ALERT_TO=""
+  if [[ "$NOTIFY" == "email" || "$NOTIFY" == "both" ]]; then
+    echo ""
+    echo -e "  ${BLU}Email (SMTP) settings${RST}"
+    _ask        SMTP_HOST  "SMTP host"       "smtp.gmail.com"
+    _ask        SMTP_PORT  "SMTP port"       "587"
+    _ask        SMTP_USER  "SMTP username"   ""
+    _ask_secret SMTP_PASS  "SMTP password"
+    _ask        ALERT_FROM "From address"    ""
+    _ask        ALERT_TO   "To address"      ""
+  fi
+
+  # Write config
+  cat > "${CONFIG_DIR}/config" << CONF_EOF
+# /etc/log-locate/config
+# Generated by installer on $(date -u +%Y-%m-%dT%H:%M:%SZ)
+# Per-file overrides go in /etc/log-locate/<filename>.conf
+
+# ── Alerting ──────────────────────────────────────────────────────────────────
+ALERT_PATTERNS="${ALERT_PATTERNS}"
+
+# Notification channel: telegram | email | both
+NOTIFY="${NOTIFY}"
+
+# ── Telegram ──────────────────────────────────────────────────────────────────
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID}"
+
+# ── Email (SMTP) ──────────────────────────────────────────────────────────────
+SMTP_HOST="${SMTP_HOST}"
+SMTP_PORT="${SMTP_PORT}"
+SMTP_USER="${SMTP_USER}"
+SMTP_PASS="${SMTP_PASS}"
+ALERT_FROM="${ALERT_FROM}"
+ALERT_TO="${ALERT_TO}"
+
+# ── Batching & cooldown ───────────────────────────────────────────────────────
+BATCH_SECONDS="${BATCH_SECONDS}"
+COOLDOWN_SECONDS="${COOLDOWN_SECONDS}"
+CONF_EOF
+
   chmod 640 "${CONFIG_DIR}/config"
   chown root:log-locate "${CONFIG_DIR}/config"
-  echo "  Config   : ${CONFIG_DIR}/config"
-else
-  echo "  Config already exists — skipping: ${CONFIG_DIR}/config"
+  echo ""
+  echo -e "${GRN}  Config written to ${CONFIG_DIR}/config${RST}"
+
+  # Offer immediate test
+  echo ""
+  echo -ne "  Send a test alert now? [Y/n]: "
+  read -r DO_TEST
+  if [[ "${DO_TEST,,}" != "n" ]]; then
+    "${BIN_DIR}/loglo" test-alert
+  fi
 fi
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
@@ -308,18 +424,12 @@ echo -e "${GRN}log-locate installed successfully!${RST}"
 echo ""
 echo "Next steps:"
 echo ""
-echo "  1. Edit the config:"
-echo "     sudo nano /etc/log-locate/config"
+echo "  Start watching a log file:"
+echo "    sudo loglo add /home/ubuntu/server.log"
 echo ""
-echo "  2. Test your notification settings:"
-echo "     sudo loglo test-alert"
+echo "  View all watched files:"
+echo "    loglo status"
 echo ""
-echo "  3. Start watching a log file:"
-echo "     sudo loglo add /home/ubuntu/server.log"
-echo ""
-echo "  4. View all watched files:"
-echo "     loglo status"
-echo ""
-echo "  5. Tail daemon logs:"
-echo "     loglo logs /home/ubuntu/server.log"
+echo "  Tail daemon logs:"
+echo "    loglo logs /home/ubuntu/server.log"
 echo ""
