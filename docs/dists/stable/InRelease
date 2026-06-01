@@ -1,0 +1,40 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: all
+Codename: stable
+Components: main
+Date: Mon, 01 Jun 2026 01:02:43 +0000
+Label: loglo
+Origin: LogLocate
+Suite: stable
+MD5Sum:
+ 51d4ef286993954563fc9dda131b1bd2              136 Release
+ d41d8cd98f00b204e9800998ecf8427e                0 main/binary-all/Packages
+ 26eb8ee793b8e4ed079681c706d2bd60               29 main/binary-all/Packages.gz
+SHA1:
+ fd561d4f15efa0bbd747462e52fd21198f2b419f              136 Release
+ da39a3ee5e6b4b0d3255bfef95601890afd80709                0 main/binary-all/Packages
+ e6e0dee667371a7d3c8e15430101af0dbcda85fb               29 main/binary-all/Packages.gz
+SHA256:
+ d4150102f5633913e74965c9416104f20a8ebfc7f840670a8810bad3bbdd39db              136 Release
+ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855                0 main/binary-all/Packages
+ 4416f846b6932b54bca8a6a6919e1f5dccd27c60eae95dc98613bd414dac7bd5               29 main/binary-all/Packages.gz
+SHA512:
+ 88defa42eac7df5d36e33314d499fe3243a1e02dc2aa34a4f7e59d66dea1d70b233746d514b510b275c7edbba9c41c73941b148d60281245cfd7c4ba4df985ab              136 Release
+ cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e                0 main/binary-all/Packages
+ 6905372e8fae9dbbfd165e39dabd202f391c29d30cfd7e2edbdc727c062a1774c5804b8f2d0b858dd05ce841e58d5c99c7188d21dcd2d99734d0be77f39db212               29 main/binary-all/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iQGzBAEBCgAdFiEEYWlrKuQBrKAyugeFUw/JkjXJakcFAmoc2jMACgkQUw/JkjXJ
+akdCtAv+O3Av5jNwTiezMgK6RkVWEsaM/uXeRlgWesyXmqwkvlo0FGamAGxhGf1o
+xU+QHf9B/HaUsRnTrvve0FtwGcP3dyQvWrMnPe2tDZPwmvQAKT/0otIVME+VlgjK
+iNVolrxLlmKSciVUao+8VIF+ECS2omd6tbwHXiv1AcuBKBt62PiCxgiCtff6EiPU
+5mSXvqar7xlaoJ/I/IBMk/RcjhptFBw4ThS3aCsjnuGJwo1QsH7d5u81Rmv42U4G
+9PmKH676NyFnOJ7875RxD8BkXmI2JvaF6z0zFEWlp5AkltoAVk38W65iPuktGZq4
+cMsEdjJhfARVIpZxcGVYGrd9pF2oFmTm3+3fJw0EDU/etTjujnksVMy6WRfzAosZ
+JbPKewJZTh21mt6OeIFz9FpIl4PjYRH/hY7RgFi9DKYgeTPR/F5FKXTiWF0dwsEX
+7xGOEPnM35Ot0cbpQByb+qTJZjkv4n/+cOlAaQ27pvh2UqVZiKUppn9v0ahiW5+K
+EeEITwAQ
+=952u
+-----END PGP SIGNATURE-----

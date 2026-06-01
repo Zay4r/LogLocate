@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# DEBIAN/postinst — runs automatically after dpkg installs the package
+set -euo pipefail
+
+RED='\033[0;31m'
+GRN='\033[0;32m'
+BLU='\033[0;34m'
+RST='\033[0m'
+
+CONFIG="/etc/log-locate/config"
+BIN_DIR="/usr/local/bin"
+
+case "$1" in
+  configure)
+
+    # ─── Symlink ──────────────────────────────────────────────────────────────
+    ln -sf "${BIN_DIR}/log-locate" "${BIN_DIR}/loglo"
+
+    # ─── Systemd ──────────────────────────────────────────────────────────────
+    systemctl daemon-reload
+
+    # ─── Telegram setup ───────────────────────────────────────────────────────
+    # postinst runs in a real terminal — plain read works perfectly here
+    echo ""
+    echo -e "${BLU}━━━  Telegram Alert Setup  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+    echo "  log-locate can send Telegram alerts when patterns are matched."
+    echo "  Leave blank to skip — edit ${CONFIG} to add later."
+    echo ""
+    read -r -p "  Enter TELEGRAM_BOT_TOKEN (or press Enter to skip): " tg_token || true
+    read -r -p "  Enter TELEGRAM_CHAT_ID   (or press Enter to skip): " tg_chat  || true
+    if [[ -n "${tg_token:-}" ]]; then
+      sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=\"${tg_token}\"|" "$CONFIG"
+      echo -e "  ${GRN}✓ TELEGRAM_BOT_TOKEN saved.${RST}"
+    fi
+    if [[ -n "${tg_chat:-}" ]]; then
+      sed -i "s|^TELEGRAM_CHAT_ID=.*|TELEGRAM_CHAT_ID=\"${tg_chat}\"|" "$CONFIG"
+      echo -e "  ${GRN}✓ TELEGRAM_CHAT_ID saved.${RST}"
+    fi
+    if [[ -z "${tg_token:-}" && -z "${tg_chat:-}" ]]; then
+      echo "  Skipped — edit ${CONFIG} to configure later."
+    fi
+    echo -e "${BLU}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+
+    # ─── Done ─────────────────────────────────────────────────────────────────
+    echo ""
+    echo -e "${GRN}loglo installed successfully!${RST}"
+    echo ""
+    echo "  Start watching a log file:"
+    echo "    sudo loglo add /var/log/myapp/server.log"
+    echo ""
+    echo "  Search:"
+    echo "    loglo search server \"ERROR\""
+    echo ""
+    echo "  Status:"
+    echo "    loglo status"
+    echo ""
+    ;;
+
+  abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+  *)
+    echo "postinst called with unknown argument: $1" >&2
+    exit 1
+    ;;
+esac
+
+exit 0

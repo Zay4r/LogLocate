@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# DEBIAN/prerm — runs automatically before dpkg removes the package
+set -euo pipefail
+
+BLU='\033[0;34m'
+GRN='\033[0;32m'
+YLW='\033[1;33m'
+RST='\033[0m'
+
+case "$1" in
+  remove|purge|upgrade|deconfigure|failed-upgrade)
+
+    echo -e "${BLU}Stopping all loglo services...${RST}"
+
+    # Stop and disable all per-file loglo services
+    while IFS= read -r unit; do
+      [[ -z "$unit" ]] && continue
+      echo "  Stopping: $unit"
+      systemctl stop    "$unit" 2>/dev/null || true
+      systemctl disable "$unit" 2>/dev/null || true
+      rm -f "/etc/systemd/system/${unit}"
+    done < <(systemctl list-units --type=service --all 2>/dev/null \
+      | grep -E 'loglo-' \
+      | awk '{print $1}' || true)
+
+    # Remove any leftover service files
+    rm -f /etc/systemd/system/loglo-*.service
+    rm -f /etc/systemd/system/log-locate_.service
+
+    systemctl daemon-reload
+    systemctl reset-failed 2>/dev/null || true
+
+    # Remove symlink (dpkg handles the real binaries)
+    rm -f /usr/local/bin/loglo
+
+    echo ""
+    echo -e "${YLW}Note: index files (.log.idx, .log.batch) are left next to your log files.${RST}"
+    echo -e "${YLW}Remove them manually if no longer needed:${RST}"
+    echo "  find / -name '*.log.idx' 2>/dev/null"
+    echo ""
+    ;;
+
+  *)
+    echo "prerm called with unknown argument: $1" >&2
+    exit 1
+    ;;
+esac
+
+exit 0

@@ -1,0 +1,13 @@
+Package: loglo
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: all
+Depends: bash, curl, coreutils, systemd, gawk
+Maintainer: Zay4r <zayarkasparov@gmail.com>
+Homepage: https://github.com/Zay4r/LogLocate
+Description: Log indexer and alerter
+ loglo watches log files, indexes matching tokens into a fast .idx file,
+ and sends Telegram or email alerts when alert patterns are matched.
+ Supports exact token matching, prefix wildcards (user_id=*), timestamp
+ range queries, and per-file config overrides.
