@@ -95,6 +95,10 @@ mkdir -p "$POOL_DIR"
 mkdir -p "$DISTS_DIR"
 cp "${BUILD_DIR}/${DEB_NAME}" "${POOL_DIR}/${DEB_NAME}"
 
+# ── Copy setup.sh into docs so it's served by GitHub Pages ───────────────────
+cp "${SCRIPT_DIR}/setup.sh" "${DOCS_DIR}/setup.sh"
+echo -e "${GRN}  Copied: setup.sh → docs/setup.sh${RST}"
+
 # ── Generate Packages index ───────────────────────────────────────────────────
 cd "$DOCS_DIR"
 dpkg-scanpackages --arch "$ARCH" "pool/${COMPONENT}" /dev/null > "${DISTS_DIR}/Packages"
@@ -144,7 +148,8 @@ echo "  git commit -m \"Release v${VERSION}\""
 echo "  git push origin main"
 echo ""
 echo "Users install with:"
-echo "  curl -fsSL https://zay4r.github.io/LogLocate/KEY.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/loglo.gpg"
-echo "  echo \"deb [signed-by=/etc/apt/keyrings/loglo.gpg] https://zay4r.github.io/LogLocate stable main\" | sudo tee /etc/apt/sources.list.d/loglo.list"
-echo "  sudo apt update && sudo apt install loglo"
+echo "  curl -fsSL https://zay4r.github.io/LogLocate/setup.sh | sudo bash"
+echo ""
+echo "After first install, updates are just:"
+echo "  sudo apt upgrade"
 echo ""

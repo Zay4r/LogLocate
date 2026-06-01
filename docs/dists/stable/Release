@@ -1,23 +1,23 @@
 Architectures: all
 Codename: stable
 Components: main
-Date: Mon, 01 Jun 2026 01:02:43 +0000
+Date: Mon, 01 Jun 2026 01:19:13 +0000
 Label: loglo
 Origin: LogLocate
 Suite: stable
 MD5Sum:
- 51d4ef286993954563fc9dda131b1bd2              136 Release
+ e2a59568dd95cb21d33ac6970a5d3541              136 Release
  d41d8cd98f00b204e9800998ecf8427e                0 main/binary-all/Packages
- 26eb8ee793b8e4ed079681c706d2bd60               29 main/binary-all/Packages.gz
+ 907658a267562937fcababc5cdce29ae               29 main/binary-all/Packages.gz
 SHA1:
- fd561d4f15efa0bbd747462e52fd21198f2b419f              136 Release
+ d5622cf9ca44121a59371951f43895f7515cc8e2              136 Release
  da39a3ee5e6b4b0d3255bfef95601890afd80709                0 main/binary-all/Packages
- e6e0dee667371a7d3c8e15430101af0dbcda85fb               29 main/binary-all/Packages.gz
+ b4226cbfa4f7ab3d3089c784992a83f7755f4ed4               29 main/binary-all/Packages.gz
 SHA256:
- d4150102f5633913e74965c9416104f20a8ebfc7f840670a8810bad3bbdd39db              136 Release
+ 72fa19ceda791def9e8b36179f777bb2563126e472f1c0c4004b0257d489a2b5              136 Release
  e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855                0 main/binary-all/Packages
- 4416f846b6932b54bca8a6a6919e1f5dccd27c60eae95dc98613bd414dac7bd5               29 main/binary-all/Packages.gz
+ 4bc2d6d5af6a40f62cf60d952e731c0ea72efa09eb4161e16050cc8c230cc8c3               29 main/binary-all/Packages.gz
 SHA512:
- 88defa42eac7df5d36e33314d499fe3243a1e02dc2aa34a4f7e59d66dea1d70b233746d514b510b275c7edbba9c41c73941b148d60281245cfd7c4ba4df985ab              136 Release
+ 17ea0b84826442c004a11ddb73cea49884e8994443b2d5c2f41dad174d9bbcd2e4c6f929cf0ce767228b7ec4949a3a83cdbf61868fb7da61bc6020e4828b90b1              136 Release
  cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e                0 main/binary-all/Packages
- 6905372e8fae9dbbfd165e39dabd202f391c29d30cfd7e2edbdc727c062a1774c5804b8f2d0b858dd05ce841e58d5c99c7188d21dcd2d99734d0be77f39db212               29 main/binary-all/Packages.gz
+ a195e04a8e9da832822103f0faebe3a45d66e9ff4e55b99379120ddb10aa8bee63ab0ee220cae7928ec532ca46b86abd862dda4e4431452e536d9120557574b6               29 main/binary-all/Packages.gz
