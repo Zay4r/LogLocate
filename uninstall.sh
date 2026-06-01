@@ -15,7 +15,6 @@ BLU='\033[0;34m'
 YLW='\033[1;33m'
 RST='\033[0m'
 
-# ─── Must run as root ─────────────────────────────────────────────────────────
 if [[ $EUID -ne 0 ]]; then
   echo -e "${RED}Please run as root: sudo bash uninstall.sh${RST}" >&2
   exit 1
@@ -24,28 +23,26 @@ fi
 echo -e "${BLU}Uninstalling log-locate...${RST}"
 
 # ─── Stop and disable all running instances ───────────────────────────────────
-echo "  Stopping all loglo services..."
+echo "  Stopping all log-locate services..."
 while IFS= read -r unit; do
   [[ -z "$unit" ]] && continue
   echo "  Stopping: $unit"
   systemctl stop    "$unit" 2>/dev/null || true
   systemctl disable "$unit" 2>/dev/null || true
   rm -f "/etc/systemd/system/${unit}"
-done < <(systemctl list-units --type=service --all \
-  | grep -E 'log-locate@|loglo-' \
-  | awk '{print $1}')
+done < <(systemctl list-units --type=service --all --no-legend \
+  | awk '{print $1}' \
+  | grep '^log-locate@')
 
-# Remove any leftover service files not caught by list-units
-rm -f /etc/systemd/system/loglo-*.service
-rm -f /etc/systemd/system/log-locate@*.service
+rm -f /etc/systemd/system/log-locate@.service
 rm -f /etc/systemd/system/log-locate_.service
 
-# ─── Remove binary ────────────────────────────────────────────────────────────
-echo "  Removing binary..."
+# ─── Remove binaries ──────────────────────────────────────────────────────────
+echo "  Removing binaries..."
 rm -f /usr/local/bin/log-locate-daemon
 rm -f /usr/local/bin/loglo
 echo "  Removed: /usr/local/bin/log-locate-daemon"
-echo "  Removed: /usr/local/bin/loglo (symlink)"
+echo "  Removed: /usr/local/bin/loglo"
 
 # ─── Reload systemd ───────────────────────────────────────────────────────────
 systemctl daemon-reload
@@ -56,7 +53,7 @@ echo "  Removing config..."
 rm -rf /etc/log-locate
 echo "  Removed: /etc/log-locate"
 
-# ─── Done ─────────────────────────────────────────────────────────────────────
+echo ""
 echo -e "${GRN}log-locate uninstalled successfully.${RST}"
 echo ""
 echo "To reinstall:"
