@@ -6,7 +6,7 @@
 # Patterns that trigger a notification. Space-separated.
 # Plain words = exact match:   ERROR WARN FATAL
 # Prefix wildcard = key=value: user_id=* request_id=* host=*
-ALERT_PATTERNS="ERROR FATAL"
+ALERT_PATTERNS="ERROR FATAL WARN"
 
 # Notification channel: telegram | email | both
 NOTIFY="telegram"

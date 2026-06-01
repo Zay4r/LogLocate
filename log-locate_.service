@@ -1,12 +1,7 @@
 # /etc/systemd/system/log-locate@.service
 #
 # Template service — one instance per watched log file.
-# The instance name is the log file path with / replaced by -
-#
-# Enable for a file:
-#   systemctl enable --now log-locate@home-deved-vpn-server-logs-server.log
-#
-# loglo add /path/to/app.log  handles this automatically.
+# loglo add /path/to/app.log  handles enable/start automatically.
 
 [Unit]
 Description=log-locate watcher/alerter for %I
@@ -15,18 +10,26 @@ PartOf=system.slice
 
 [Service]
 Type=simple
-User=root
+User=log-locate
+Group=log-locate
 
-# %I is the instance name (URL-decoded systemd escaping)
 ExecStart=/usr/local/bin/log-locate-daemon %I
 
 Restart=on-failure
 RestartSec=5s
 
+# Resource limits
+MemoryMax=64M
+CPUQuota=10%
+
+# Runtime directory for cooldown state persistence
+RuntimeDirectory=log-locate
+RuntimeDirectoryMode=0750
+
 EnvironmentFile=-/etc/log-locate/config
 
 # Output goes to journald — view with:
-#   journalctl -u log-locate@home-deved-vpn-server-logs-server.log -f
+#   loglo logs /path/to/file.log
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=log-locate

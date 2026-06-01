@@ -53,6 +53,12 @@ echo "  Removing config..."
 rm -rf /etc/log-locate
 echo "  Removed: /etc/log-locate"
 
+# ─── Remove system user ───────────────────────────────────────────────────────
+if id -u log-locate &>/dev/null; then
+  userdel log-locate 2>/dev/null || true
+  echo "  Removed system user: log-locate"
+fi
+
 echo ""
 echo -e "${GRN}log-locate uninstalled successfully.${RST}"
 echo ""
