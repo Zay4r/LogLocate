@@ -33,6 +33,11 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+# ─── Re-attach stdin to terminal immediately ──────────────────────────────────
+# When piped from curl, stdin is the pipe. Redirect to /dev/tty now — before
+# any downloads — so the wizard's read calls work without any lag or race.
+exec </dev/tty
+
 echo -e "${BLU}Installing log-locate...${RST}"
 
 # ─── Check dependencies ───────────────────────────────────────────────────────
@@ -285,9 +290,6 @@ echo "  Installed: ${SERVICE_DIR}/log-locate@.service"
 mkdir -p "$CONFIG_DIR"
 chmod 750 "$CONFIG_DIR"
 chown root:log-locate "$CONFIG_DIR"
-
-# Re-open stdin from the terminal so read works even when piped from curl
-exec </dev/tty
 
 _ask() {
   # _ask VARNAME "Prompt text" "default"
