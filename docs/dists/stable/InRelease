@@ -4,37 +4,37 @@ Hash: SHA512
 Architectures: all
 Codename: stable
 Components: main
-Date: Mon, 01 Jun 2026 05:29:24 +0000
+Date: Mon, 01 Jun 2026 05:57:14 +0000
 Label: loglo
 Origin: LogLocate
 Suite: stable
 MD5Sum:
- 0da444b7aa08e2c47859e2aa96908734              136 Release
- d0f607ccba5c07ba7bd9498f3563f18d              596 main/binary-all/Packages
- 2c7fc132cd29ae61c220eaaf9f407e16              431 main/binary-all/Packages.gz
+ 0654972e264d7b659a8f7d9023a7a763              136 Release
+ a6c3a8df4ff7db9616c48acdabfbf9c2              596 main/binary-all/Packages
+ c36bb2fa8cb9ae8097c2d0059469d430              430 main/binary-all/Packages.gz
 SHA1:
- ee066a1a5c33a8262329ec21767d7c1d03c5325b              136 Release
- 8fc240b9433c6aa9d6bdf338c42d35d5262cd811              596 main/binary-all/Packages
- 2668dd6066e7b038ab2df138920f08facd5a9950              431 main/binary-all/Packages.gz
+ 4d11f45f4b5c645a717cc866f12bfb96dd0a2022              136 Release
+ 6b5e2a1d6e201252f3ce994d437f0780d42ccc74              596 main/binary-all/Packages
+ d12fb39715454d2170940913139fcce185ddfb86              430 main/binary-all/Packages.gz
 SHA256:
- c6cdfa1669186b28dc665dacff83666186122a554675210889623138308bffbf              136 Release
- 0001c51ae023204f96bb25625ebaaaed269faaf3abb9be3027097b686f59ceee              596 main/binary-all/Packages
- 3c914ea9157cb2002666881fbab6912bbd5d3d5ed1054a5acb050aa9fe217917              431 main/binary-all/Packages.gz
+ 2ee171d1012225485e1472e90d4e59d97cb8c596525e972dc982317589dd1673              136 Release
+ 1fc2bf493ea0fbebe399d1d5f2fdef3be52f50bb57da9f9cffc9ad7404f21a97              596 main/binary-all/Packages
+ 73015c39cb2c0aa7696d8a8ab404a1314f334f2f06d1752053d559c7215ca877              430 main/binary-all/Packages.gz
 SHA512:
- db527189b8c6e0b444340900712a63450c01af6596a11c784d981a1bf5084c26f765868977ebf6f57fa92b80008d2ff2e966e693b98e9325bf3f25fb8bae9b87              136 Release
- 17541f36a133e423538c5bf5bd831b22f9627ebf5e21cad172d0e0192dbe2b9ee93925b7723325934b1792ae24635c2da11ea1c36e73cc6af63e518a7d35cd56              596 main/binary-all/Packages
- ea9ae33c2e7d5cce949464e04956d50f4432e4b08699c92ad60f548aaa6a157136930231f2c47313b5421c27a778c614e2c06d0dbcb9341a25c5974d2babba3d              431 main/binary-all/Packages.gz
+ 02299211be6c796bd1a44ae66c584a736263f33d49483f5a86dcefc070542d89cb9c2a40f1dfd9df6ff0e653f90682fa4e6b46e71a94294634cb9b32a461b523              136 Release
+ b4ef17c46f9e01d64fdd27fba67a1c7639f640881b7ccb960edc2047b1c0a67180bf703d66c2f28cd13156e2aa0ca15447d71f4fce38da06bf0bc60bdf39f94d              596 main/binary-all/Packages
+ 3424f3dfa3d6b56ad4c0b61516d30993b3d94d4955ce1b2bf52044ef63f1cbb192b13f073d4407a359dde60cbe2b8499f22b9bc99c4c9b54f79190fad1371a3e              430 main/binary-all/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iQGzBAEBCgAdFiEEYWlrKuQBrKAyugeFUw/JkjXJakcFAmodGLcACgkQUw/JkjXJ
-akeS/AwAmJxjNorRvY72jxDRWldtoOIdpNJkeOSYgp9JqkIxB+ChbqZ9GLXZVKP6
-YwVug9js/rvVw6EVC5b0wsZro+kQCfija4i9ZZwPUHnFLfnY1wCdka9EcBV6Dcy1
-370nOh/eT3dpnFXJ5oUDKkGoVMgk0PC1Ryv0XbEenx9ATnmJmROj6WKe6OT9Rlg5
-/D0tTwTR4leMGhDzaWyAo/i5dZZQJ9TuLeKaTrrLxUCmR3j7T/Qd/+EPFA7BvJov
-C4I+VJe6liooBUHTIV19eRAwRxUIph5w7Pf3PgQfd5DtTG7hZCFa6KBsjKKHJ49e
-IpOem/TD5Zsvb74F5wLDFI9ECodS53ijOhdl1dXyfpscwo0lbidn+3HJl7y3dxhN
-e6Vg6jDhl6HL3UrfMOzigba12JEqXrpHvFZhd5Rwl8TZzq5jYEQYD9OKwa3jNvTa
-dIGHFQKTWIKoPEF9QdcJMNKruTjFw5tVzZRJFrWg0r1VVs7arr5TuRc+++a2IQak
-ruKyxhqF
-=n7KZ
+iQGzBAEBCgAdFiEEYWlrKuQBrKAyugeFUw/JkjXJakcFAmodHz0ACgkQUw/JkjXJ
+akfmKgv/bCzmo3W/C2CXFmOS6udIFNMAyShZSjTvCTg6I63+L+V0SjokaoQiCh04
+m6dhNn+CfofcM+/B3GN65Vbm6sjWolDB24LkzDc6E53sruH4VoLXJblqZgGl+zMP
+tYvQuwTv5OtLEGHOP2yUAv5+C+QspY4LOs0jtccgnXOrny0Rkx3uCaHHXsIx7YHY
+RIRWeV02oOmIXFVN6xPyhRQMGhWAYQWSo+YZY9L0/YRuRWWXs3z6zLzRKBvyMEGR
+PzWgCUHb3ujaAPG0pZCz0R7mH8eEVGquzzcfYuR1jz4H1rXoO3aCALZwZIxOgUz3
+dAUBgBFus+Ah1XPy+sqUIK5J774Yce635mAwIHLyD6n7114MVpUgyCST3sdZ4v0l
+5eRd9ArJT/aiq4la7BEE9OYJg1hUsdGzbW1fqoK54OMrkqgFjB2dLxcIWjyMz2au
+dgNREgL7efwQmOPgFOFdQVo5Yh2KrwSD3hnh2Bk1n7ploC0hmzFZ77wqlq31XzbK
+FITjfhPX
+=+mF8
 -----END PGP SIGNATURE-----
