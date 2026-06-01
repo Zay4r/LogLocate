@@ -97,12 +97,20 @@ echo "  log-locate can send alerts to a Telegram chat."
 echo "  Leave blank to skip and configure manually later in /etc/log-locate/config"
 echo ""
 
-# When piped through curl | bash, stdin is the pipe — read must use /dev/tty directly
+# When piped through curl | bash, stdin is the pipe — read must use /dev/tty directly.
+# Declare first so -u never sees an unbound variable even if read fails.
 tg_token=""
 tg_chat=""
-if [[ -t 0 ]] || [[ -e /dev/tty ]]; then
-  read -r -p "  Enter TELEGRAM_BOT_TOKEN (or press Enter to skip): " tg_token </dev/tty || true
-  read -r -p "  Enter TELEGRAM_CHAT_ID   (or press Enter to skip): " tg_chat  </dev/tty || true
+_read_tty() {
+  local __var="$1" __prompt="$2" __val=""
+  # read returns non-zero on EOF; || true prevents -e from aborting
+  { read -r -p "$__prompt" __val </dev/tty; } 2>/dev/null || true
+  # Use printf -v to assign without eval; safe under set -u
+  printf -v "$__var" '%s' "${__val:-}"
+}
+if [[ -e /dev/tty ]]; then
+  _read_tty tg_token "  Enter TELEGRAM_BOT_TOKEN (or press Enter to skip): "
+  _read_tty tg_chat  "  Enter TELEGRAM_CHAT_ID   (or press Enter to skip): "
 fi
 
 if [[ -n "$tg_token" || -n "$tg_chat" ]]; then
