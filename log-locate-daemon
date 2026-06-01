@@ -74,17 +74,6 @@ echo "[loglo-daemon] Patterns : $PATTERNS"
 echo "[loglo-daemon] Alerts   : $ALERT_PATTERNS"
 echo "[loglo-daemon] Notify   : $NOTIFY"
 
-# ─── Index existing content, then tail for new lines ─────────────────────────
-# LINE_COUNT tracks the REAL line number in the file so sed lookups are correct.
-> "$IDX_FILE"
-LINE_COUNT=0
-echo "[loglo-daemon] Indexing existing content..."
-while IFS= read -r line; do
-  LINE_COUNT=$(( LINE_COUNT + 1 ))
-  _index_line "$line" "$LINE_COUNT" || true
-done < "$LOG_FILE"
-echo "[loglo-daemon] Indexed $LINE_COUNT existing lines. Watching for new lines..."
-
 # ─── Token matching ───────────────────────────────────────────────────────────
 _matches_pattern() {
   local token="$1"
@@ -279,6 +268,17 @@ _process_line() {
   fi
   return 0
 }
+
+# ─── Index existing content, then tail for new lines ─────────────────────────
+# LINE_COUNT tracks the REAL line number in the file so sed lookups are correct.
+> "$IDX_FILE"
+LINE_COUNT=0
+echo "[loglo-daemon] Indexing existing content..."
+while IFS= read -r line; do
+  LINE_COUNT=$(( LINE_COUNT + 1 ))
+  _index_line "$line" "$LINE_COUNT" || true
+done < "$LOG_FILE"
+echo "[loglo-daemon] Indexed $LINE_COUNT existing lines. Now watching for new lines..."
 
 # ─── Main watch loop ──────────────────────────────────────────────────────────
 echo "[loglo-daemon] Ready — tailing new lines..."
