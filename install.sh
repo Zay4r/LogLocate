@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # install.sh — log-locate installer
 #
-# Installs binaries as /usr/local/bin/log-locate and /usr/local/bin/log-locate-daemon.
+# Installs binary as /usr/local/bin/log-locate-daemon.
 # Creates /usr/local/bin/loglo as a symlink alias for faster typing.
 #
 # Usage (remote):
@@ -31,7 +31,7 @@ fi
 echo -e "${BLU}Installing log-locate...${RST}"
 
 # ─── Check dependencies ───────────────────────────────────────────────────────
-for dep in curl tail awk grep dd systemctl; do
+for dep in curl tail awk grep systemctl; do
   if ! command -v "$dep" &>/dev/null; then
     echo -e "${RED}Missing dependency: $dep${RST}" >&2
     exit 1
@@ -39,7 +39,7 @@ for dep in curl tail awk grep dd systemctl; do
 done
 
 # ─── Detect: running locally or piped from curl ──────────────────────────────
-if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "bash" && -f "$(dirname "${BASH_SOURCE[0]}")/log-locate" ]]; then
+if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "bash" && -f "$(dirname "${BASH_SOURCE[0]}")/log-locate-daemon" ]]; then
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   USE_LOCAL=true
 else
@@ -59,20 +59,16 @@ _get_file() {
   fi
 }
 
-# ─── Install binaries ─────────────────────────────────────────────────────────
-echo "  Installing binaries..."
-_get_file "log-locate"        "${BIN_DIR}/log-locate"
+# ─── Install binary ───────────────────────────────────────────────────────────
+echo "  Installing binary..."
 _get_file "log-locate-daemon" "${BIN_DIR}/log-locate-daemon"
-
-chmod +x "${BIN_DIR}/log-locate"
 chmod +x "${BIN_DIR}/log-locate-daemon"
 
-# loglo is just a convenience symlink → log-locate
-ln -sf "${BIN_DIR}/log-locate" "${BIN_DIR}/loglo"
+# loglo is a convenience symlink → log-locate-daemon
+ln -sf "${BIN_DIR}/log-locate-daemon" "${BIN_DIR}/loglo"
 
-echo "  Installed: ${BIN_DIR}/log-locate"
 echo "  Installed: ${BIN_DIR}/log-locate-daemon"
-echo "  Symlink  : ${BIN_DIR}/loglo → ${BIN_DIR}/log-locate"
+echo "  Symlink  : ${BIN_DIR}/loglo → ${BIN_DIR}/log-locate-daemon"
 
 # ─── Install systemd service template ────────────────────────────────────────
 echo "  Installing systemd service template..."
@@ -102,12 +98,6 @@ echo ""
 echo "  2. Start watching a log file:"
 echo "     sudo loglo add /home/deved/vpn-server/logs/server.log"
 echo ""
-echo "  3. Search the index:"
-echo "     loglo search /home/deved/vpn-server/logs/server.log \"user_id=87904\""
-echo ""
-echo "  4. Range search:"
-echo "     loglo range /home/deved/vpn-server/logs/server.log 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z"
-echo ""
-echo "  5. View all watched files:"
+echo "  3. View all watched files:"
 echo "     loglo status"
 echo ""

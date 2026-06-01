@@ -40,12 +40,10 @@ rm -f /etc/systemd/system/loglo-*.service
 rm -f /etc/systemd/system/log-locate@*.service
 rm -f /etc/systemd/system/log-locate_.service
 
-# ─── Remove binaries ──────────────────────────────────────────────────────────
-echo "  Removing binaries..."
-rm -f /usr/local/bin/log-locate
+# ─── Remove binary ────────────────────────────────────────────────────────────
+echo "  Removing binary..."
 rm -f /usr/local/bin/log-locate-daemon
 rm -f /usr/local/bin/loglo
-echo "  Removed: /usr/local/bin/log-locate"
 echo "  Removed: /usr/local/bin/log-locate-daemon"
 echo "  Removed: /usr/local/bin/loglo (symlink)"
 
@@ -57,15 +55,6 @@ systemctl reset-failed 2>/dev/null || true
 echo "  Removing config..."
 rm -rf /etc/log-locate
 echo "  Removed: /etc/log-locate"
-
-# ─── Ask about index files ────────────────────────────────────────────────────
-echo ""
-echo -e "${YLW}Index files (.idx, .batch, .cooldown) are left next to your log files.${RST}"
-echo -e "${YLW}Remove them manually if you no longer need them:${RST}"
-echo ""
-echo "  find / -name '*.log.idx' 2>/dev/null"
-echo "  find / -name '*.log.batch' 2>/dev/null"
-echo ""
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo -e "${GRN}log-locate uninstalled successfully.${RST}"

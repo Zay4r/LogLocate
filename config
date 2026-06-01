@@ -2,16 +2,11 @@
 # Global configuration for log-locate
 # Per-file overrides go in /etc/log-locate/<filename>.conf
 
-# ── Indexing ──────────────────────────────────────────────────────────────────
-# Tokens to index. Space-separated.
+# ── Alerting ──────────────────────────────────────────────────────────────────
+# Patterns that trigger a notification. Space-separated.
 # Plain words = exact match:   ERROR WARN FATAL
 # Prefix wildcard = key=value: user_id=* request_id=* host=*
-PATTERNS="ERROR WARN FATAL"
-
-# ── Alerting ──────────────────────────────────────────────────────────────────
-# Which indexed tokens also trigger a notification.
-# Must be a subset of PATTERNS.
-ALERT_PATTERNS="ERROR FATAL 500"
+ALERT_PATTERNS="ERROR FATAL"
 
 # Notification channel: telegram | email | both
 NOTIFY="telegram"

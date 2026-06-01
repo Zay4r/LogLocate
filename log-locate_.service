@@ -4,14 +4,13 @@
 # The instance name is the log file path with / replaced by -
 #
 # Enable for a file:
-#   systemctl enable --now log-locate@etc-project-logs-app.log
+#   systemctl enable --now log-locate@home-deved-vpn-server-logs-server.log
 #
-# log-locate add /path/to/app.log  handles this automatically.
+# loglo add /path/to/app.log  handles this automatically.
 
 [Unit]
-Description=log-locate indexer/alerter for %I
+Description=log-locate watcher/alerter for %I
 After=network.target
-# Restart if the log file's parent process restarts
 PartOf=system.slice
 
 [Service]
@@ -19,18 +18,15 @@ Type=simple
 User=root
 
 # %I is the instance name (URL-decoded systemd escaping)
-# We pass the real file path via the instance name
 ExecStart=/usr/local/bin/log-locate-daemon %I
 
-# Restart automatically if the daemon crashes
 Restart=on-failure
 RestartSec=5s
 
-# Give the daemon a clean environment
 EnvironmentFile=-/etc/log-locate/config
 
 # Output goes to journald — view with:
-#   journalctl -u log-locate@etc-project-logs-app.log -f
+#   journalctl -u log-locate@home-deved-vpn-server-logs-server.log -f
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=log-locate

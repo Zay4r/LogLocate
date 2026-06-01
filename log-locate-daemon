@@ -74,27 +74,16 @@ echo "[loglo-daemon] Patterns : $PATTERNS"
 echo "[loglo-daemon] Alerts   : $ALERT_PATTERNS"
 echo "[loglo-daemon] Notify   : $NOTIFY"
 
-# ─── Count existing lines ─────────────────────────────────────────────────────
+# ─── Index existing content, then tail for new lines ─────────────────────────
+# LINE_COUNT tracks the REAL line number in the file so sed lookups are correct.
+> "$IDX_FILE"
 LINE_COUNT=0
-if [[ -f "$IDX_FILE" ]]; then
-  LAST=$(awk -F'\t' 'NF>=2 {n=$2+0} END {print n+0}' "$IDX_FILE")
-  LINE_COUNT=$LAST
-  echo "[loglo-daemon] Resuming from line $LINE_COUNT"
-else
-  echo "[loglo-daemon] First run — indexing existing file..."
-  _FIRST_RUN=true
-fi
-
-# ─── Index existing file on first run ────────────────────────────────────────
-_index_existing() {
-  local line_num=0
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line_num=$(( line_num + 1 ))
-    _index_line "$line" "$line_num" || true
-  done < "$LOG_FILE"
-  LINE_COUNT=$line_num
-  echo "[loglo-daemon] Indexed $LINE_COUNT existing lines."
-}
+echo "[loglo-daemon] Indexing existing content..."
+while IFS= read -r line; do
+  LINE_COUNT=$(( LINE_COUNT + 1 ))
+  _index_line "$line" "$LINE_COUNT" || true
+done < "$LOG_FILE"
+echo "[loglo-daemon] Indexed $LINE_COUNT existing lines. Watching for new lines..."
 
 # ─── Token matching ───────────────────────────────────────────────────────────
 _matches_pattern() {
@@ -292,8 +281,6 @@ _process_line() {
 }
 
 # ─── Main watch loop ──────────────────────────────────────────────────────────
-[[ "${_FIRST_RUN:-false}" == "true" ]] && _index_existing
-
 echo "[loglo-daemon] Ready — tailing new lines..."
 
 # read -t 20 times out every 20s so the flush check runs even with no new lines
