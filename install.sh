@@ -103,9 +103,9 @@ tg_token=""
 tg_chat=""
 _read_tty() {
   local __var="$1" __prompt="$2" __val=""
-  # read returns non-zero on EOF; || true prevents -e from aborting
-  { read -r -p "$__prompt" __val </dev/tty; } 2>/dev/null || true
-  # Use printf -v to assign without eval; safe under set -u
+  # Write prompt directly to /dev/tty so it shows even when stdout is a pipe
+  printf '%s' "$__prompt" >/dev/tty
+  { read -r __val </dev/tty; } 2>/dev/null || true
   printf -v "$__var" '%s' "${__val:-}"
 }
 if [[ -e /dev/tty ]]; then
