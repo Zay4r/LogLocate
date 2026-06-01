@@ -97,8 +97,13 @@ echo "  log-locate can send alerts to a Telegram chat."
 echo "  Leave blank to skip and configure manually later in /etc/log-locate/config"
 echo ""
 
-read -r -p "  Enter TELEGRAM_BOT_TOKEN (or press Enter to skip): " tg_token
-read -r -p "  Enter TELEGRAM_CHAT_ID   (or press Enter to skip): " tg_chat
+# When piped through curl | bash, stdin is the pipe — read must use /dev/tty directly
+tg_token=""
+tg_chat=""
+if [[ -t 0 ]] || [[ -e /dev/tty ]]; then
+  read -r -p "  Enter TELEGRAM_BOT_TOKEN (or press Enter to skip): " tg_token </dev/tty || true
+  read -r -p "  Enter TELEGRAM_CHAT_ID   (or press Enter to skip): " tg_chat  </dev/tty || true
+fi
 
 if [[ -n "$tg_token" || -n "$tg_chat" ]]; then
   CONFIG_FILE="${CONFIG_DIR}/config"
