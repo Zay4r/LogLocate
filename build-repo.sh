@@ -105,16 +105,15 @@ mkdir -p "$DISTS_DIR"
 cp "${BUILD_DIR}/${DEB_NAME}" "${POOL_DIR}/${DEB_NAME}"
 echo -e "${GRN}  Copied .deb to pool.${RST}"
 
-# ── Copy setup.sh and uninstall.sh into docs so they're served by GitHub Pages
-cp "${SCRIPT_DIR}/setup.sh"     "${DOCS_DIR}/setup.sh"
-cp "${SCRIPT_DIR}/uninstall.sh" "${DOCS_DIR}/uninstall.sh"
+# ── Copy setup.sh into docs so it's served by GitHub Pages ───────────────────
+cp "${SCRIPT_DIR}/setup.sh" "${DOCS_DIR}/setup.sh"
 echo -e "${GRN}  Copied: setup.sh → docs/setup.sh${RST}"
-echo -e "${GRN}  Copied: uninstall.sh → docs/uninstall.sh${RST}"
 
 # ── Generate Packages index ───────────────────────────────────────────────────
 cd "$DOCS_DIR"
 dpkg-scanpackages "pool/${COMPONENT}" /dev/null > "${DISTS_DIR}/Packages"
-gzip -k -f "${DISTS_DIR}/Packages"
+# --no-name strips the embedded timestamp so the hash is stable across rebuilds
+gzip -k -f --no-name "${DISTS_DIR}/Packages"
 echo -e "${GRN}  Generated: Packages + Packages.gz${RST}"
 
 # ── Generate Release file ─────────────────────────────────────────────────────
