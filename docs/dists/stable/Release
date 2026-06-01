@@ -1,23 +1,23 @@
 Architectures: all
 Codename: stable
 Components: main
-Date: Mon, 01 Jun 2026 01:47:00 +0000
+Date: Mon, 01 Jun 2026 02:21:29 +0000
 Label: loglo
 Origin: LogLocate
 Suite: stable
 MD5Sum:
- 9cb6bc94f70b4251d316b5ef5d55b70e              136 Release
- 94eebf0960e0bd63d5eb30d57eef6506              596 main/binary-all/Packages
- 9b1e1b2902350bfbddb36f029cc3766d              443 main/binary-all/Packages.gz
+ 83bd4863b00afe1230f686b1c99f9a10              136 Release
+ b006f0f0790aa5793c0311d203ea2903              596 main/binary-all/Packages
+ 9343880a7ff24c5fb1cc2d298519ba0d              442 main/binary-all/Packages.gz
 SHA1:
- 82b105b73c276f8daa455b23e0adb399b82a946b              136 Release
- 6c9d0992fdbc7a39b198f5fedb9505835627dac8              596 main/binary-all/Packages
- 3f866e2a58006a6c671625bf15ebfd45fa497474              443 main/binary-all/Packages.gz
+ 2b648f3239258dde19cd96f2eb8228117a9d821d              136 Release
+ c315d295116602a1ddc4871ffc498e33dafad32b              596 main/binary-all/Packages
+ 2aa3628254cd37ee966a80adf7628f574a3a32fd              442 main/binary-all/Packages.gz
 SHA256:
- 91025eee3a42600debe801b8c8d5e780655e415fb9aad4cfa69ea2548eb10e08              136 Release
- 374ee99e57a9f3353ae695cc8d7ea9c77710432918d3d227b9c38cfd3c968d9b              596 main/binary-all/Packages
- 43a63cbe0e2d9fb4b323851efa682f897f27a47896df6462705afff47fb9e749              443 main/binary-all/Packages.gz
+ 6b9a612f887eea2a2a356f925296d2327572e0c603acb92af3b208308ca2f01d              136 Release
+ afbef5f3333a98505c5edd3694aa43d8ac93b0ea6d8061b5d3c65aa73be358cc              596 main/binary-all/Packages
+ d355ecc774a82926b0dad41c203fae9671351cb8353976f4c7139c38d24f7fbf              442 main/binary-all/Packages.gz
 SHA512:
- e077bc209922625d203d5f478f4ae58657fb3317ccd04bce5088812f062d1ef303301550cec42078714bb9697946da62de2666dd53f08a5b38e4441b8b3e60c8              136 Release
- 5d39eb25d83ce24ea082230a386a880611c53524b4dadad30937c85dd231db5ad4f37449262ae1d30e3d22e07fe5e6c95ceae6bbf4ede13188e3e3ad4dccbf3c              596 main/binary-all/Packages
- 6c876061915e0102487b3420c4c2c2cc8b824778b5a236074275f9c225bd425633502768426e93fd5c88ca7aff76bd520c4e72919fc63fc702bbdae1079a0511              443 main/binary-all/Packages.gz
+ 8b872ccb7ba427725d0389bfe52583625435b161c387cb4411c69a25ce3b60c92735690b1286c5f84440077c1ed12ed4bd63457997f7246f4df922007ef6093c              136 Release
+ 9fbc644cec8d64021d555f8fa30efd008bcdc42e43dfd0911aa276af46ac55df93e41d9da80c134dbbe2610f1f3b80c1dd0133e43e1da8f38da4cb4299cc5b79              596 main/binary-all/Packages
+ ff6b55af24bf4935c5343b7c63e2c6f6228fa88d042c999ff26012615f415b0386ca8c4897a75869b3502f5dfe4aa007fe606a466eaf61beadcd052a85be5ddc              442 main/binary-all/Packages.gz

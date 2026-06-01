@@ -53,8 +53,20 @@ cp "${SCRIPT_DIR}/log-locate"          "${BUILD_DIR}/${PACKAGE}_${VERSION}/usr/l
 cp "${SCRIPT_DIR}/log-locate-daemon"   "${BUILD_DIR}/${PACKAGE}_${VERSION}/usr/local/bin/log-locate-daemon"
 cp "${SCRIPT_DIR}/config"              "${BUILD_DIR}/${PACKAGE}_${VERSION}/etc/log-locate/config"
 cp "${SCRIPT_DIR}/log-locate_.service" "${BUILD_DIR}/${PACKAGE}_${VERSION}/etc/systemd/system/log-locate_.service"
+cp "${SCRIPT_DIR}/DEBIAN/postinst"     "${BUILD_DIR}/${PACKAGE}_${VERSION}/DEBIAN/postinst"
+cp "${SCRIPT_DIR}/DEBIAN/prerm"        "${BUILD_DIR}/${PACKAGE}_${VERSION}/DEBIAN/prerm"
 
-# DEBIAN control files
+# Strip Windows line endings (CRLF → LF) — files edited on Windows break bash
+for f in \
+  "${BUILD_DIR}/${PACKAGE}_${VERSION}/usr/local/bin/log-locate" \
+  "${BUILD_DIR}/${PACKAGE}_${VERSION}/usr/local/bin/log-locate-daemon" \
+  "${BUILD_DIR}/${PACKAGE}_${VERSION}/etc/log-locate/config" \
+  "${BUILD_DIR}/${PACKAGE}_${VERSION}/DEBIAN/postinst" \
+  "${BUILD_DIR}/${PACKAGE}_${VERSION}/DEBIAN/prerm"; do
+  sed -i 's/\r//' "$f"
+done
+
+# DEBIAN control file
 cat > "${BUILD_DIR}/${PACKAGE}_${VERSION}/DEBIAN/control" << CTRL
 Package: ${PACKAGE}
 Version: ${VERSION}
@@ -68,9 +80,6 @@ Description: Log indexer and alerter
  loglo watches log files, indexes matching tokens into a fast .idx file,
  and sends Telegram or email alerts when alert patterns are matched.
 CTRL
-
-cp "${SCRIPT_DIR}/DEBIAN/postinst" "${BUILD_DIR}/${PACKAGE}_${VERSION}/DEBIAN/postinst"
-cp "${SCRIPT_DIR}/DEBIAN/prerm"    "${BUILD_DIR}/${PACKAGE}_${VERSION}/DEBIAN/prerm"
 
 chmod 755 "${BUILD_DIR}/${PACKAGE}_${VERSION}/usr/local/bin/log-locate"
 chmod 755 "${BUILD_DIR}/${PACKAGE}_${VERSION}/usr/local/bin/log-locate-daemon"
@@ -94,6 +103,7 @@ echo -e "${GRN}  Built: ${BUILD_DIR}/${DEB_NAME}${RST}"
 mkdir -p "$POOL_DIR"
 mkdir -p "$DISTS_DIR"
 cp "${BUILD_DIR}/${DEB_NAME}" "${POOL_DIR}/${DEB_NAME}"
+echo -e "${GRN}  Copied .deb to pool.${RST}"
 
 # ── Copy setup.sh into docs so it's served by GitHub Pages ───────────────────
 cp "${SCRIPT_DIR}/setup.sh" "${DOCS_DIR}/setup.sh"
@@ -101,7 +111,7 @@ echo -e "${GRN}  Copied: setup.sh → docs/setup.sh${RST}"
 
 # ── Generate Packages index ───────────────────────────────────────────────────
 cd "$DOCS_DIR"
-dpkg-scanpackages --arch "$ARCH" "pool/${COMPONENT}" /dev/null > "${DISTS_DIR}/Packages"
+dpkg-scanpackages "pool/${COMPONENT}" /dev/null > "${DISTS_DIR}/Packages"
 gzip -k -f "${DISTS_DIR}/Packages"
 echo -e "${GRN}  Generated: Packages + Packages.gz${RST}"
 

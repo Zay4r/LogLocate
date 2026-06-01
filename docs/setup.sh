@@ -51,7 +51,7 @@ echo -e "  ${GRN}✓ GPG key added.${RST}"
 
 # ─── Add APT source ───────────────────────────────────────────────────────────
 echo "  Adding APT repository..."
-echo "deb [signed-by=${KEYRING}] ${REPO_URL} stable main" > "$SOURCES"
+echo "deb [arch=all signed-by=${KEYRING}] ${REPO_URL} stable main" > "$SOURCES"
 echo -e "  ${GRN}✓ Repository added.${RST}"
 
 # ─── apt update ───────────────────────────────────────────────────────────────
