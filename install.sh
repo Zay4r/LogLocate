@@ -90,6 +90,33 @@ else
   echo "  Config already exists — skipping: ${CONFIG_DIR}/config"
 fi
 
+# ─── Telegram setup prompts ───────────────────────────────────────────────────
+echo ""
+echo -e "${BLU}━━━  Telegram Alert Setup  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+echo "  log-locate can send alerts to a Telegram chat."
+echo "  Leave blank to skip and configure manually later in /etc/log-locate/config"
+echo ""
+
+read -r -p "  Enter TELEGRAM_BOT_TOKEN (or press Enter to skip): " tg_token
+read -r -p "  Enter TELEGRAM_CHAT_ID   (or press Enter to skip): " tg_chat
+
+if [[ -n "$tg_token" || -n "$tg_chat" ]]; then
+  CONFIG_FILE="${CONFIG_DIR}/config"
+  # Replace token line
+  if [[ -n "$tg_token" ]]; then
+    sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=\"${tg_token}\"|" "$CONFIG_FILE"
+    echo -e "  ${GRN}✓ TELEGRAM_BOT_TOKEN saved.${RST}"
+  fi
+  # Replace chat id line
+  if [[ -n "$tg_chat" ]]; then
+    sed -i "s|^TELEGRAM_CHAT_ID=.*|TELEGRAM_CHAT_ID=\"${tg_chat}\"|" "$CONFIG_FILE"
+    echo -e "  ${GRN}✓ TELEGRAM_CHAT_ID saved.${RST}"
+  fi
+else
+  echo "  Skipped — edit /etc/log-locate/config to add credentials later."
+fi
+echo -e "${BLU}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GRN}log-locate installed successfully!${RST}"
