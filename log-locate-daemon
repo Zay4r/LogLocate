@@ -190,36 +190,33 @@ _flush_alerts() {
   count=$(wc -l < "$BATCH_FILE" 2>/dev/null || echo 0)
   [[ "$count" -eq 0 ]] && return 0
 
-  # Build compact Telegram message
+# Build raw Telegram message blocks
   local tg_lines=""
   local subject_keyword=""
+  
+  # Start preformatted monospace rendering
+  tg_lines+="<pre>"
+
   while IFS= read -r raw_line; do
+    # Remove leading spaces from batch generation formatting if present
     if [[ "$raw_line" =~ ^[[:space:]] ]]; then
       local log_line
       log_line="${raw_line#"${raw_line%%[! ]*}"}"
+      
+      # Dynamically grab the first keyword match we hit to populate email/header subjects
+      if [[ -z "$subject_keyword" ]]; then
+        local kw_pattern
+        kw_pattern=$(echo "$ALERT_PATTERNS" | tr ' ' '|')
+        subject_keyword=$(echo "$log_line" | grep -oP "\b(${kw_pattern})\b" | head -1 || true)
+      fi
 
-      local ts
-      ts=$(echo "$log_line" | grep -oP '\d{2}:\d{2}:\d{2}' | head -1 || true)
-
-      local kw_pattern
-      kw_pattern=$(echo "$ALERT_PATTERNS" | tr ' ' '|')
-      local kw
-      kw=$(echo "$log_line" | grep -oP "\b(${kw_pattern})\b" | head -1 || true)
-      [[ -z "$subject_keyword" && -n "$kw" ]] && subject_keyword="$kw"
-
-      local ip
-      ip=$(echo "$log_line" | grep -oP 'ip[=:]\K[\d.]+' | head -1 || true)
-
-      local build
-      build=$(echo "$log_line" | grep -oP 'build[=:]\S+' | sed 's/build[=:]//' | cut -d'/' -f2 || true)
-
-      tg_lines+="
-<b>${ts:-??:??:??}</b>  <code>${kw:-event}</code>${ip:+  🌐 $ip}${build:+
-  📱 $build}
+      tg_lines+="$log_line
 "
     fi
   done < "$BATCH_FILE"
 
+  # Close preformatted rendering block
+  tg_lines+="</pre>"
   local alert_count=$(( count / 3 ))
   [[ $alert_count -eq 0 ]] && alert_count=1
   local subject="[log-locate] ${subject_keyword:-alert} × ${alert_count} — $(basename "$LOG_FILE")"

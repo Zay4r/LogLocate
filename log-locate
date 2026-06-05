@@ -208,97 +208,6 @@ cmd_remove() {
   echo -e "${GRN}[loglo] Stopped watching: $abs_file (name: $name)${RST}"
 }
 
-# ─── Command: search ──────────────────────────────────────────────────────────
-cmd_search() {
-  local input="$1"
-  local keyword="$2"
-
-  if [[ -z "$input" || -z "$keyword" ]]; then
-    echo -e "${RED}Usage: loglo search <name-or-file> <keyword>${RST}" >&2
-    exit 1
-  fi
-
-  local abs_file
-  abs_file=$(_resolve "$input")
-  local idx_file="${abs_file}.idx"
-
-  if [[ ! -f "$idx_file" ]]; then
-    echo -e "${RED}[loglo] Index not found: $idx_file${RST}" >&2
-    echo "  Run: sudo loglo add $abs_file"
-    exit 1
-  fi
-
-  local start_ns
-  start_ns=$(date +%s%N)
-  local count=0
-  local last_line_num=""
-
-  while IFS=$'\t' read -r token line_num timestamp; do
-    local match=false
-    if [[ "$keyword" == *"*" ]]; then
-      local prefix="${keyword%\*}"
-      [[ "$token" == "$prefix"* ]] && match=true
-    else
-      [[ "$token" == "$keyword" ]] && match=true
-    fi
-
-    if $match; then
-      [[ "$line_num" == "$last_line_num" ]] && continue
-      last_line_num="$line_num"
-      local log_line
-      log_line=$(sed -n "${line_num}p" "$abs_file" 2>/dev/null || echo "(line unavailable)")
-      printf "${YLW}line %-8s${RST}  %s\n" "$line_num" "$log_line"
-      count=$(( count + 1 ))
-    fi
-  done < "$idx_file"
-
-  local elapsed_ms=$(( ($(date +%s%N) - start_ns) / 1000000 ))
-  echo ""
-  echo -e "${GRN}$count result(s) for \"$keyword\" — ${elapsed_ms}ms${RST}"
-}
-# ─── Command: range ───────────────────────────────────────────────────────────
-cmd_range() {
-  local input="$1"
-  local from_ts="$2"
-  local to_ts="$3"
-
-  if [[ -z "$input" || -z "$from_ts" || -z "$to_ts" ]]; then
-    echo -e "${RED}Usage: loglo range <name-or-file> <from-ts> <to-ts>${RST}" >&2
-    echo "  Example: loglo range server 2026-05-28T10:15:00Z 2026-05-28T10:20:00Z"
-    exit 1
-  fi
-
-  local abs_file
-  abs_file=$(_resolve "$input")
-  local idx_file="${abs_file}.idx"
-
-  if [[ ! -f "$idx_file" ]]; then
-    echo -e "${RED}[loglo] Index not found: $idx_file${RST}" >&2
-    exit 1
-  fi
-
-  local start_ns
-  start_ns=$(date +%s%N)
-
-  local count=0
-  local last_line_num=""
-  while IFS=$'\t' read -r token line_num timestamp; do
-    [[ -z "$token" || -z "$line_num" || -z "$timestamp" ]] && continue
-    [[ "$timestamp" < "$from_ts" ]] && continue
-    [[ "$timestamp" > "$to_ts" ]]   && continue
-    [[ "$line_num" == "$last_line_num" ]] && continue
-    last_line_num="$line_num"
-    local log_line
-    log_line=$(sed -n "${line_num}p" "$abs_file" 2>/dev/null || echo "(line unavailable)")
-    printf "${YLW}line %-8s${RST}  %s\n" "$line_num" "$log_line"
-    count=$(( count + 1 ))
-  done < "$idx_file"
-
-  local elapsed_ms=$(( ($(date +%s%N) - start_ns) / 1000000 ))
-  echo ""
-  echo -e "${GRN}$count result(s) — ${elapsed_ms}ms${RST}"
-}
-
 # ─── Command: status ──────────────────────────────────────────────────────────
 cmd_status() {
   echo -e "${BLU}loglo — watched files${RST}"
@@ -400,8 +309,6 @@ shift || true
 case "$COMMAND" in
   add)    cmd_add    "$@" ;;
   remove) cmd_remove "$@" ;;
-  search) cmd_search "$@" ;;
-  range)  cmd_range  "$@" ;;
   status) cmd_status      ;;
   list)   cmd_list        ;;
   help|--help|-h) cmd_help ;;
