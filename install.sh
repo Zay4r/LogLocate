@@ -286,104 +286,107 @@ _get_file "log-locate_.service" "${SERVICE_DIR}/log-locate@.service"
 systemctl daemon-reload
 echo "  Installed: ${SERVICE_DIR}/log-locate@.service"
 
-# ─── Interactive config wizard ────────────────────────────────────────────────
+# ─── Interactive config wizard (TUI) ──────────────────────────────────────────
 mkdir -p "$CONFIG_DIR"
 chmod 750 "$CONFIG_DIR"
 chown root:log-locate "$CONFIG_DIR"
 
-_ask() {
-  # _ask VARNAME "Prompt text" "default"
-  local var="$1" prompt="$2" default="$3"
-  local input
-  echo -ne "  ${prompt}${DIM}${default:+ [$default]}${RST}: "
-  read -r input
-  # Use default if user pressed enter with no input
-  printf -v "$var" '%s' "${input:-$default}"
-}
-
-_ask_secret() {
-  local var="$1" prompt="$2"
-  local input
-  echo -ne "  ${prompt}: "
-  read -rs input
-  echo ""
-  printf -v "$var" '%s' "$input"
-}
+# Ensure whiptail is available for the TUI wizard
+if ! command -v whiptail &>/dev/null; then
+  echo "  Installing whiptail for interactive setup UI..."
+  if command -v apt-get &>/dev/null; then
+    apt-get update -qq && apt-get install -y -qq whiptail >/dev/null
+  elif command -v yum &>/dev/null; then
+    yum install -y -q whiptail >/dev/null
+  fi
+fi
 
 CONFIG_EXISTS=false
 [[ -f "${CONFIG_DIR}/config" ]] && CONFIG_EXISTS=true
 
 if $CONFIG_EXISTS; then
-  echo ""
-  echo -e "${YLW}Config already exists at ${CONFIG_DIR}/config${RST}"
-  echo -ne "  Re-run the setup wizard? [y/N]: "
-  read -r REDO </dev/tty
-  [[ "${REDO,,}" != "y" ]] && {
+  if ! whiptail --title "Config Exists" --yesno "Configuration already exists at ${CONFIG_DIR}/config\n\nDo you want to re-run the setup wizard and overwrite it?" 10 60; then
     echo "  Skipping — keeping existing config."
     CONFIG_DONE=true
-  }
+  fi
 fi
 
 if [[ "${CONFIG_DONE:-false}" != "true" ]]; then
-  echo ""
-  echo -e "${BLU}─── Configuration wizard ────────────────────────────────────────${RST}"
-  echo ""
+  
+  # 1. Choose Notification Channel
+  NOTIFY=$(whiptail --title "Log-Locate Setup Wizard" --menu \
+    "Select your primary notification alert backend:" 12 60 3 \
+    "telegram" "Send structured raw snippets to a Telegram Chat" \
+    "email"    "Send email via custom SMTP connection" \
+    "both"     "Dispatch alerts via Telegram AND Email simultaneously" \
+    3>&1 1>&2 2>&3) || NOTIFY="telegram"
 
-  # Notification channel
-  echo -e "  Notification channel:"
-  echo -e "    ${DIM}1) telegram${RST}"
-  echo -e "    ${DIM}2) email${RST}"
-  echo -e "    ${DIM}3) both${RST}"
-  echo -ne "  Choose [1/2/3] ${DIM}[1]${RST}: "
-  read -r NOTIFY_CHOICE
-  case "${NOTIFY_CHOICE:-1}" in
-    2) NOTIFY="email" ;;
-    3) NOTIFY="both" ;;
-    *) NOTIFY="telegram" ;;
-  esac
+  # 2. Alert Patterns
+  ALERT_PATTERNS=$(whiptail --title "Alert Configurations" --inputbox \
+    "Specify words/patterns that trigger alerts (space-separated):\n\nPrefix wildcards are supported (e.g. user_id=*)" \
+    12 60 "ERROR FATAL WARN" 3>&1 1>&2 2>&3) || ALERT_PATTERNS="ERROR FATAL WARN"
 
-  # Alert patterns
-  _ask ALERT_PATTERNS "Alert patterns (space-separated)" "ERROR FATAL WARN"
+  # 3. Batching Timeline
+  BATCH_SECONDS=$(whiptail --title "Performance Parameters" --inputbox \
+    "Batch window (seconds):\nHow long should logs accumulate before sending a grouped alert summary?" \
+    12 60 "10" 3>&1 1>&2 2>&3) || BATCH_SECONDS="10"
 
-  # Batching / cooldown
-  _ask BATCH_SECONDS   "Batch window in seconds" "10"
-  _ask COOLDOWN_SECONDS "Cooldown after alert in seconds" "300"
+  # 4. Cooldown Period
+  COOLDOWN_SECONDS=$(whiptail --title "Performance Parameters" --inputbox \
+    "Cooldown window (seconds):\nHow long should notifications be suppressed after an alert finishes firing?" \
+    12 60 "300" 3>&1 1>&2 2>&3) || COOLDOWN_SECONDS="300"
 
-  # Telegram
+  # Initialize variable spaces
   TELEGRAM_BOT_TOKEN=""
   TELEGRAM_CHAT_ID=""
-  if [[ "$NOTIFY" == "telegram" || "$NOTIFY" == "both" ]]; then
-    echo ""
-    echo -e "  ${BLU}Telegram settings${RST}"
-    _ask_secret TELEGRAM_BOT_TOKEN "Bot token"
-    _ask        TELEGRAM_CHAT_ID   "Chat ID" ""
-  fi
-
-  # Email
   SMTP_HOST="smtp.gmail.com"
   SMTP_PORT="587"
   SMTP_USER=""
   SMTP_PASS=""
   ALERT_FROM=""
   ALERT_TO=""
-  if [[ "$NOTIFY" == "email" || "$NOTIFY" == "both" ]]; then
-    echo ""
-    echo -e "  ${BLU}Email (SMTP) settings${RST}"
-    _ask        SMTP_HOST  "SMTP host"       "smtp.gmail.com"
-    _ask        SMTP_PORT  "SMTP port"       "587"
-    _ask        SMTP_USER  "SMTP username"   ""
-    _ask_secret SMTP_PASS  "SMTP password"
-    _ask        ALERT_FROM "From address"    ""
-    _ask        ALERT_TO   "To address"      ""
+
+  # 5. Conditional Telegram Setup
+  if [[ "$NOTIFY" == "telegram" || "$NOTIFY" == "both" ]]; then
+    TELEGRAM_BOT_TOKEN=$(whiptail --title "Telegram Bot API Settings" --passwordbox \
+      "Enter your HTTP Telegram Bot API Token:" 10 60 3>&1 1>&2 2>&3) || TELEGRAM_BOT_TOKEN=""
+    
+    TELEGRAM_CHAT_ID=$(whiptail --title "Telegram Destination Settings" --inputbox \
+      "Enter target Telegram Chat ID / Channel ID:" 10 60 3>&1 1>&2 2>&3) || TELEGRAM_CHAT_ID=""
   fi
 
-  # Write config
+  # 6. Conditional Email Setup
+  if [[ "$NOTIFY" == "email" || "$NOTIFY" == "both" ]]; then
+    SMTP_HOST=$(whiptail --title "SMTP Server Settings" --inputbox \
+      "Enter SMTP outbound host address:" 10 60 "smtp.gmail.com" 3>&1 1>&2 2>&3) || SMTP_HOST="smtp.gmail.com"
+    
+    SMTP_PORT=$(whiptail --title "SMTP Port Settings" --inputbox \
+      "Enter SMTP infrastructure outbound port connection:" 10 60 "587" 3>&1 1>&2 2>&3) || SMTP_PORT="587"
+    
+    SMTP_USER=$(whiptail --title "SMTP Credentials Authentication" --inputbox \
+      "Enter authentication system username/account email:" 10 60 "" 3>&1 1>&2 2>&3) || SMTP_USER=""
+    
+    # Hide password chars while typing
+    SMTP_PASS=$(whiptail --title "SMTP Credentials Authentication" --passwordbox \
+      "Enter your secure password string / app key:" 10 60 3>&1 1>&2 2>&3) || SMTP_PASS=""
+    
+    ALERT_FROM=$(whiptail --title "Email Source Routing" --inputbox \
+      "Sender identity address (From header value):" 10 60 "$SMTP_USER" 3>&1 1>&2 2>&3) || ALERT_FROM=""
+    
+    ALERT_TO=$(whiptail --title "Email Target Destination" --inputbox \
+      "Receiver identity address (To alert notification mailbox):" 10 60 "" 3>&1 1>&2 2>&3) || ALERT_TO=""
+  fi
+
+  # Write fully annotated config
   cat > "${CONFIG_DIR}/config" << CONF_EOF
 # /etc/log-locate/config
-# Generated by installer on $(date -u +%Y-%m-%dT%H:%M:%SZ)
+# Global configuration for log-locate
 # Per-file overrides go in /etc/log-locate/<filename>.conf
 
 # ── Alerting ──────────────────────────────────────────────────────────────────
+# Patterns that trigger a notification. Space-separated.
+# Plain words = exact match:    ERROR WARN FATAL
+# Prefix wildcard = key=value: user_id=* request_id=* host=*
 ALERT_PATTERNS="${ALERT_PATTERNS}"
 
 # Notification channel: telegram | email | both
@@ -402,20 +405,20 @@ ALERT_FROM="${ALERT_FROM}"
 ALERT_TO="${ALERT_TO}"
 
 # ── Batching & cooldown ───────────────────────────────────────────────────────
+# Collect matching lines for this many seconds before sending one alert.
 BATCH_SECONDS="${BATCH_SECONDS}"
+
+# After sending an alert, suppress new alerts for this many seconds.
 COOLDOWN_SECONDS="${COOLDOWN_SECONDS}"
 CONF_EOF
 
   chmod 640 "${CONFIG_DIR}/config"
   chown root:log-locate "${CONFIG_DIR}/config"
-  echo ""
-  echo -e "${GRN}  Config written to ${CONFIG_DIR}/config${RST}"
+  
+  whiptail --title "Setup Confirmed" --msgbox "Configuration dynamically exported and assigned cleanly to:\n${CONFIG_DIR}/config" 10 60
 
-  # Offer immediate test
-  echo ""
-  echo -ne "  Send a test alert now? [Y/n]: "
-  read -r DO_TEST
-  if [[ "${DO_TEST,,}" != "n" ]]; then
+  # Offer immediate test using a clean yes/no prompt box
+  if whiptail --title "Test Infrastructure Connectivity" --yesno "Would you like to send out a fast diagnostic alert pipeline test to your nodes right now?" 10 60; then
     "${BIN_DIR}/loglo" test-alert
   fi
 fi
