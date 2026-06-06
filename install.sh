@@ -268,7 +268,7 @@ case "$CMD" in
           --mail-from "${ALERT_FROM}" \
           --mail-rcpt "${ALERT_TO}" \
           --user "${SMTP_USER}:${SMTP_PASS}" \
-          -T <(echo -e "From: ${ALERT_FROM}\nTo: ${ALERT_TO}\nSubject: [log-locate] Test Alert\n\n${MSG}") \
+          --upload-file <(echo -e "From: ${ALERT_FROM}\nTo: ${ALERT_TO}\nSubject: [log-locate] Test Alert\n\n${MSG}") \
           && echo -e "${GRN}Email: test message sent successfully.${RST}" && SENT=1 \
           || echo -e "${RED}Email: failed to send.${RST}" >&2
       fi
@@ -295,7 +295,8 @@ echo "  Installed: ${SERVICE_DIR}/log-locate@.service"
 
 # ─── Interactive config wizard (TUI) ──────────────────────────────────────────
 mkdir -p "$CONFIG_DIR"
-chmod 750 "$CONFIG_DIR"
+# FIX: Open permissions from 750 to 755 so local users can view registration maps
+chmod 755 "$CONFIG_DIR"
 chown root:log-locate "$CONFIG_DIR"
 
 # Ensure whiptail is available for the TUI wizard
@@ -420,7 +421,7 @@ BATCH_SECONDS="${BATCH_SECONDS}"
 COOLDOWN_SECONDS="${COOLDOWN_SECONDS}"
 CONF_EOF
 
-  chmod 640 "${CONFIG_DIR}/config"
+  chmod 644 "${CONFIG_DIR}/config"
   chown root:log-locate "${CONFIG_DIR}/config"
   
   whiptail --title "Setup Confirmed" --msgbox "Configuration dynamically exported and assigned cleanly to:\n${CONFIG_DIR}/config" 10 60
@@ -434,15 +435,4 @@ fi
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GRN}log-locate installed successfully!${RST}"
-echo ""
-echo "Next steps:"
-echo ""
-echo "  Start watching a log file:"
-echo "    sudo loglo add /home/ubuntu/server.log"
-echo ""
-echo "  View all watched files:"
-echo "    loglo status"
-echo ""
-echo "  Tail daemon logs:"
-echo "    loglo logs /home/ubuntu/server.log"
 echo ""
