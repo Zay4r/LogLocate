@@ -106,6 +106,20 @@ _get_file "log-locate_.service" "${SERVICE_DIR}/log-locate@.service"
 systemctl daemon-reload
 echo "  Installed: ${SERVICE_DIR}/log-locate@.service"
 
+# ─── Registry file ────────────────────────────────────────────────────────────
+# Must exist and be writable by all users so loglo status/list work without sudo
+touch "${CONFIG_DIR}/registry"
+chmod 666 "${CONFIG_DIR}/registry"
+
+# ─── Journal access for the invoking user ─────────────────────────────────────
+REAL_USER="${SUDO_USER:-${USER:-}}"
+if [[ -n "$REAL_USER" && "$REAL_USER" != "root" ]]; then
+  if getent group systemd-journal &>/dev/null; then
+    usermod -aG systemd-journal "$REAL_USER"
+    echo "  Added $REAL_USER to systemd-journal group (re-login to apply)"
+  fi
+fi
+
 # ─── Interactive config wizard (TUI) ──────────────────────────────────────────
 mkdir -p "$CONFIG_DIR"
 chmod 755 "$CONFIG_DIR"
@@ -241,21 +255,6 @@ CONF_EOF
   # Offer immediate test using a clean yes/no prompt box
   if whiptail --title "Test Infrastructure Connectivity" --yesno "Would you like to send out a fast diagnostic alert pipeline test to your nodes right now?" 10 60; then
     "${BIN_DIR}/loglo" test-alert
-  fi
-fi
-
-# ─── Registry file ────────────────────────────────────────────────────────────
-# Must be readable and writable by all users so loglo status/list work without sudo
-touch "${CONFIG_DIR}/registry"
-chmod 666 "${CONFIG_DIR}/registry"
-
-# ─── Journal access for the invoking user ─────────────────────────────────────
-# Adds the real user (even under sudo) to systemd-journal so `loglo logs` works
-REAL_USER="${SUDO_USER:-${USER:-}}"
-if [[ -n "$REAL_USER" && "$REAL_USER" != "root" ]]; then
-  if getent group systemd-journal &>/dev/null; then
-    usermod -aG systemd-journal "$REAL_USER"
-    echo "  Added $REAL_USER to systemd-journal group (re-login to apply)"
   fi
 fi
 
