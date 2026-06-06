@@ -20,7 +20,7 @@ User=root
 
 # %I is the instance name (URL-decoded systemd escaping)
 # We pass the real file path via the instance name
-ExecStart=/usr/local/bin/loglo-daemon %I
+ExecStart=/usr/local/bin/log-locate-daemon /%I
 
 # Restart automatically if the daemon crashes
 Restart=on-failure
