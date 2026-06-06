@@ -108,8 +108,8 @@ echo "  Installed: ${SERVICE_DIR}/log-locate@.service"
 
 # ─── Interactive config wizard (TUI) ──────────────────────────────────────────
 mkdir -p "$CONFIG_DIR"
-chmod 750 "$CONFIG_DIR"
-chown root:log-locate "$CONFIG_DIR"
+chmod 755 "$CONFIG_DIR"
+chown root:root "$CONFIG_DIR"
 
 # Ensure whiptail is available for the TUI wizard
 if ! command -v whiptail &>/dev/null; then
@@ -233,8 +233,8 @@ BATCH_SECONDS="${BATCH_SECONDS}"
 COOLDOWN_SECONDS="${COOLDOWN_SECONDS}"
 CONF_EOF
 
-  chmod 640 "${CONFIG_DIR}/config"
-  chown root:log-locate "${CONFIG_DIR}/config"
+  chmod 644 "${CONFIG_DIR}/config"
+  chown root:root "${CONFIG_DIR}/config"
   
   whiptail --title "Setup Confirmed" --msgbox "Configuration dynamically exported and assigned cleanly to:\n${CONFIG_DIR}/config" 10 60
 
@@ -244,18 +244,38 @@ CONF_EOF
   fi
 fi
 
+# ─── Registry file ────────────────────────────────────────────────────────────
+# Must be readable and writable by all users so loglo status/list work without sudo
+touch "${CONFIG_DIR}/registry"
+chmod 666 "${CONFIG_DIR}/registry"
+
+# ─── Journal access for the invoking user ─────────────────────────────────────
+# Adds the real user (even under sudo) to systemd-journal so `loglo logs` works
+REAL_USER="${SUDO_USER:-${USER:-}}"
+if [[ -n "$REAL_USER" && "$REAL_USER" != "root" ]]; then
+  if getent group systemd-journal &>/dev/null; then
+    usermod -aG systemd-journal "$REAL_USER"
+    echo "  Added $REAL_USER to systemd-journal group (re-login to apply)"
+  fi
+fi
+
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GRN}log-locate installed successfully!${RST}"
 echo ""
 echo "Next steps:"
 echo ""
+echo "  Re-login (or run 'newgrp systemd-journal') to apply journal group access."
+echo ""
 echo "  Start watching a log file:"
-echo "    sudo loglo add /home/ubuntu/server.log"
+echo "    sudo loglo add /path/to/app.log --name myapp"
 echo ""
 echo "  View all watched files:"
 echo "    loglo status"
 echo ""
 echo "  Tail daemon logs:"
-echo "    loglo logs /home/ubuntu/server.log"
+echo "    loglo logs myapp"
+echo ""
+echo "  Send a test alert:"
+echo "    loglo test-alert"
 echo ""
