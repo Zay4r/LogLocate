@@ -106,12 +106,16 @@ _get_file "log-locate_.service" "${SERVICE_DIR}/log-locate@.service"
 systemctl daemon-reload
 echo "  Installed: ${SERVICE_DIR}/log-locate@.service"
 
-# ─── Registry file ────────────────────────────────────────────────────────────
-# Must exist and be writable by all users so loglo status/list work without sudo
+# ─── Config directory, registry, journal access ───────────────────────────────
+mkdir -p "$CONFIG_DIR"
+chmod 755 "$CONFIG_DIR"
+chown root:root "$CONFIG_DIR"
+
+# Registry must exist and be world-writable so loglo status/list work without sudo
 touch "${CONFIG_DIR}/registry"
 chmod 666 "${CONFIG_DIR}/registry"
 
-# ─── Journal access for the invoking user ─────────────────────────────────────
+# Add the real invoking user to systemd-journal so `loglo logs` works without sudo
 REAL_USER="${SUDO_USER:-${USER:-}}"
 if [[ -n "$REAL_USER" && "$REAL_USER" != "root" ]]; then
   if getent group systemd-journal &>/dev/null; then
@@ -121,9 +125,6 @@ if [[ -n "$REAL_USER" && "$REAL_USER" != "root" ]]; then
 fi
 
 # ─── Interactive config wizard (TUI) ──────────────────────────────────────────
-mkdir -p "$CONFIG_DIR"
-chmod 755 "$CONFIG_DIR"
-chown root:root "$CONFIG_DIR"
 
 # Ensure whiptail is available for the TUI wizard
 if ! command -v whiptail &>/dev/null; then
