@@ -36,7 +36,14 @@ fi
 # ─── Re-attach stdin to terminal immediately ──────────────────────────────────
 # When piped from curl, stdin is the pipe. Redirect to /dev/tty now — before
 # any downloads — so the wizard's read calls work without any lag or race.
-exec </dev/tty
+if [[ -t 0 ]]; then
+  : # already a terminal, stdin is fine
+elif [[ -r /dev/tty && -w /dev/tty ]]; then
+  exec </dev/tty
+else
+  echo -e "${YLW}Warning: no TTY available — whiptail wizard may not render.${RST}"
+  echo -e "${YLW}Tip: download the script and run it directly instead of piping from curl.${RST}"
+fi
 
 echo -e "${BLU}Installing log-locate...${RST}"
 
@@ -295,7 +302,8 @@ chown root:log-locate "$CONFIG_DIR"
 if ! command -v whiptail &>/dev/null; then
   echo "  Installing whiptail for interactive setup UI..."
   if command -v apt-get &>/dev/null; then
-    apt-get update -qq && apt-get install -y -qq whiptail >/dev/null
+    echo "  Running apt-get update (this may take a moment)..."
+apt-get update -qq && apt-get install -y -qq whiptail
   elif command -v yum &>/dev/null; then
     yum install -y -q whiptail >/dev/null
   fi
@@ -387,7 +395,7 @@ if [[ "${CONFIG_DONE:-false}" != "true" ]]; then
 # Patterns that trigger a notification. Space-separated.
 # Plain words = exact match:    ERROR WARN FATAL
 # Prefix wildcard = key=value: user_id=* request_id=* host=*
-ALERT_PATTERNS="${ALERT_PATTERNS}"
+ALERT_PATTERNS="${ALERT_PATTERNS}"  
 
 # Notification channel: telegram | email | both
 NOTIFY="${NOTIFY}"
