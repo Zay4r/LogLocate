@@ -74,17 +74,6 @@ echo "[loglo-daemon] Patterns : $PATTERNS"
 echo "[loglo-daemon] Alerts   : $ALERT_PATTERNS"
 echo "[loglo-daemon] Notify   : $NOTIFY"
 
-# ─── Index existing content, then tail for new lines ─────────────────────────
-# LINE_COUNT tracks the REAL line number in the file so sed lookups are correct.
-> "$IDX_FILE"
-LINE_COUNT=0
-echo "[loglo-daemon] Indexing existing content..."
-while IFS= read -r line; do
-  LINE_COUNT=$(( LINE_COUNT + 1 ))
-  _index_line "$line" "$LINE_COUNT" || true
-done < "$LOG_FILE"
-echo "[loglo-daemon] Indexed $LINE_COUNT existing lines. Watching for new lines..."
-
 # ─── Token matching ───────────────────────────────────────────────────────────
 _matches_pattern() {
   local token="$1"
@@ -139,12 +128,15 @@ _send_telegram() {
     echo "[loglo-daemon] Telegram not configured, skipping." >&2
     return
   fi
-  curl -s -X POST \
+  local tg_resp
+  tg_resp=$(curl -s -X POST \
     "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
     -d chat_id="$TELEGRAM_CHAT_ID" \
     --data-urlencode text="$message" \
-    -d parse_mode="HTML" \
-    > /dev/null
+    -d parse_mode="HTML")
+  if ! echo "$tg_resp" | grep -q '"ok":true'; then
+    echo "[loglo-daemon] Telegram error: $tg_resp" >&2
+  fi
 }
 
 # ─── Alert: send email via SMTP using curl ────────────────────────────────────
@@ -170,15 +162,18 @@ Content-Type: text/plain; charset=UTF-8
 
 $body
 EOF
-  curl -s \
+  local email_resp
+  email_resp=$(curl -s \
     --url "smtp://${SMTP_HOST}:${SMTP_PORT}" \
     --ssl-reqd \
     --mail-from "$from" \
     --mail-rcpt "$ALERT_TO" \
     --user "${SMTP_USER}:${SMTP_PASS}" \
-    --upload-file "$msg_file" \
-    > /dev/null
+    --upload-file "$msg_file" 2>&1 || true)
   rm -f "$msg_file"
+  if [[ -n "$email_resp" ]]; then
+    echo "[loglo-daemon] Email send output: $email_resp" >&2
+  fi
 }
 
 # ─── Flush alert batch ────────────────────────────────────────────────────────
@@ -190,20 +185,26 @@ _flush_alerts() {
   count=$(wc -l < "$BATCH_FILE" 2>/dev/null || echo 0)
   [[ "$count" -eq 0 ]] && return 0
 
-# Build raw Telegram message blocks
+  # Build Telegram HTML message blocks
   local tg_lines=""
   local subject_keyword=""
-  
-  # Start preformatted monospace rendering
+
+  # Start preformatted monospace block
   tg_lines+="<pre>"
 
   while IFS= read -r raw_line; do
-    # Remove leading spaces from batch generation formatting if present
+    # Content lines are indented with 3 spaces by _process_line
     if [[ "$raw_line" =~ ^[[:space:]] ]]; then
       local log_line
       log_line="${raw_line#"${raw_line%%[! ]*}"}"
-      
-      # Dynamically grab the first keyword match we hit to populate email/header subjects
+
+      # Escape HTML special chars — unescaped < > & cause Telegram 400 errors
+      # and silently drop the entire message
+      log_line="${log_line//&/&amp;}"
+      log_line="${log_line//</&lt;}"
+      log_line="${log_line//>/&gt;}"
+
+      # Grab first matching keyword for the subject/header
       if [[ -z "$subject_keyword" ]]; then
         local kw_pattern
         kw_pattern=$(echo "$ALERT_PATTERNS" | tr ' ' '|')
@@ -215,10 +216,12 @@ _flush_alerts() {
     fi
   done < "$BATCH_FILE"
 
-  # Close preformatted rendering block
+  # Close preformatted block
   tg_lines+="</pre>"
+
   local alert_count=$(( count / 3 ))
   [[ $alert_count -eq 0 ]] && alert_count=1
+
   local subject="[log-locate] ${subject_keyword:-alert} × ${alert_count} — $(basename "$LOG_FILE")"
   local tg_message
   tg_message="🚨 <b>${subject_keyword:-log-locate alert}</b>  <i>(${alert_count} event(s))</i>
@@ -276,6 +279,18 @@ _process_line() {
   fi
   return 0
 }
+
+# ─── Index existing content, then tail for new lines ─────────────────────────
+# NOTE: all functions must be defined above before this block runs.
+# LINE_COUNT tracks the REAL line number so sed lookups are correct.
+> "$IDX_FILE"
+LINE_COUNT=0
+echo "[loglo-daemon] Indexing existing content..."
+while IFS= read -r line; do
+  LINE_COUNT=$(( LINE_COUNT + 1 ))
+  _index_line "$line" "$LINE_COUNT" || true
+done < "$LOG_FILE"
+echo "[loglo-daemon] Indexed $LINE_COUNT existing lines. Watching for new lines..."
 
 # ─── Main watch loop ──────────────────────────────────────────────────────────
 echo "[loglo-daemon] Ready — tailing new lines..."
