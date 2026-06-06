@@ -177,6 +177,7 @@ EOF
 }
 
 # ─── Flush alert batch ────────────────────────────────────────────────────────
+# ─── Flush alert batch ────────────────────────────────────────────────────────
 _flush_alerts() {
   [[ ! -f "$BATCH_FILE" ]] && return 0
   [[ -f "$LOCK_FILE"    ]] && return 0
@@ -185,24 +186,16 @@ _flush_alerts() {
   count=$(wc -l < "$BATCH_FILE" 2>/dev/null || echo 0)
   [[ "$count" -eq 0 ]] && return 0
 
-  # Build Telegram HTML message blocks
-  local tg_lines=""
   local subject_keyword=""
-
-  # Start preformatted monospace block
-  tg_lines+="<pre>"
-
+  local raw_batch_content=""
+  
+  # 1. Read the batch file to extract the subject keyword and build raw content
   while IFS= read -r raw_line; do
-    # Content lines are indented with 3 spaces by _process_line
-    if [[ "$raw_line" =~ ^[[:space:]] ]]; then
-      local log_line
-      log_line="${raw_line#"${raw_line%%[! ]*}"}"
+    raw_batch_content+="$raw_line"$'\n'
 
-      # Escape HTML special chars — unescaped < > & cause Telegram 400 errors
-      # and silently drop the entire message
-      log_line="${log_line//&/&amp;}"
-      log_line="${log_line//</&lt;}"
-      log_line="${log_line//>/&gt;}"
+    # Content lines are indented with spaces by _process_line
+    if [[ "$raw_line" =~ ^[[:space:]] ]]; then
+      local log_line="${raw_line#"${raw_line%%[! ]*}"}"
 
       # Grab first matching keyword for the subject/header
       if [[ -z "$subject_keyword" ]]; then
@@ -210,22 +203,24 @@ _flush_alerts() {
         kw_pattern=$(echo "$ALERT_PATTERNS" | tr ' ' '|')
         subject_keyword=$(echo "$log_line" | grep -oP "\b(${kw_pattern})\b" | head -1 || true)
       fi
-
-      tg_lines+="$log_line
-"
     fi
   done < "$BATCH_FILE"
 
-  # Close preformatted block
-  tg_lines+="</pre>"
+  # 2. ESCAPE EVERYTHING GOING TO TELEGRAM (Crucial step for <pre> to work)
+  local escaped_content="$raw_batch_content"
+  escaped_content="${escaped_content//&/&amp;}"
+  escaped_content="${escaped_content//</&lt;}"
+  escaped_content="${escaped_content//>/&gt;}"
 
   local alert_count=$(( count / 3 ))
   [[ $alert_count -eq 0 ]] && alert_count=1
 
   local subject="[log-locate] ${subject_keyword:-alert} × ${alert_count} — $(basename "$LOG_FILE")"
+  
+  # 3. Construct message with the fully escaped content wrapped in <pre>
   local tg_message
   tg_message="🚨 <b>${subject_keyword:-log-locate alert}</b>  <i>(${alert_count} event(s))</i>
-${tg_lines}"
+<pre>${escaped_content}</pre>"
 
   echo "[loglo-daemon] Sending alert — ${alert_count} event(s)"
 
