@@ -270,10 +270,12 @@ cmd_help() {
 ${BLU}loglo${RST} — log indexer and alerter
 
 Usage:
-  sudo loglo add    <file> [--name <name>] [--patterns "ERROR user_id=*"]
-  sudo loglo remove <name-or-file>
-       loglo search <name-or-file> <keyword>
-       loglo range  <name-or-file> <from-ts> <to-ts>
+  sudo loglo add          <file> [--name <name>] [--alert "ERROR FATAL"]
+  sudo loglo remove       <name-or-file>
+       loglo logs         <name-or-file>
+       loglo test-alert
+       loglo search       <name-or-file> <keyword>
+       loglo range        <name-or-file> <from-ts> <to-ts>
        loglo status
        loglo list
        loglo help
@@ -302,16 +304,86 @@ Examples:
 HELP
 }
 
+# ─── Command: logs ────────────────────────────────────────────────────────────
+cmd_logs() {
+  local input="${1:-}"
+  if [[ -z "$input" ]]; then
+    echo -e "${RED}Usage: loglo logs <name-or-file>${RST}" >&2
+    exit 1
+  fi
+  local abs_file
+  abs_file=$(_resolve "$input")
+  local name
+  name=$(_registry_path_to_name "$abs_file" || true)
+  [[ -z "$name" ]] && name="$input"
+  local service
+  service=$(_service_name "$name")
+  exec journalctl -u "$service" -f
+}
+
+# ─── Command: test-alert ──────────────────────────────────────────────────────
+cmd_test_alert() {
+  [[ -f "$GLOBAL_CONFIG" ]] && source "$GLOBAL_CONFIG"
+
+  local hostname_val
+  hostname_val=$(hostname)
+  local timestamp
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local msg="🔔 [log-locate] Test alert from ${hostname_val} at ${timestamp}. If you received this, notifications are working correctly."
+
+  NOTIFY="${NOTIFY:-telegram}"
+  local sent=0
+
+  if [[ "$NOTIFY" == "telegram" || "$NOTIFY" == "both" ]]; then
+    if [[ -z "${TELEGRAM_BOT_TOKEN:-}" || -z "${TELEGRAM_CHAT_ID:-}" ]]; then
+      echo -e "${RED}Telegram not configured (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID missing in config)${RST}" >&2
+    else
+      local resp
+      resp=$(curl -sf -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        -d chat_id="${TELEGRAM_CHAT_ID}" \
+        -d text="${msg}" || echo "FAILED")
+      if echo "$resp" | grep -q '"ok":true'; then
+        echo -e "${GRN}Telegram: test message sent successfully.${RST}"
+        sent=1
+      else
+        echo -e "${RED}Telegram: failed to send. Response: $resp${RST}" >&2
+      fi
+    fi
+  fi
+
+  if [[ "$NOTIFY" == "email" || "$NOTIFY" == "both" ]]; then
+    if [[ -z "${SMTP_USER:-}" || -z "${SMTP_PASS:-}" || -z "${ALERT_TO:-}" ]]; then
+      echo -e "${RED}Email not configured (SMTP_USER / SMTP_PASS / ALERT_TO missing in config)${RST}" >&2
+    else
+      local from="${ALERT_FROM:-$SMTP_USER}"
+      curl -sf \
+        --url "smtp://${SMTP_HOST}:${SMTP_PORT}" \
+        --ssl-reqd \
+        --mail-from "$from" \
+        --mail-rcpt "${ALERT_TO}" \
+        --user "${SMTP_USER}:${SMTP_PASS}" \
+        -T <(printf "From: %s\nTo: %s\nSubject: [log-locate] Test Alert\n\n%s\n" \
+              "$from" "${ALERT_TO}" "$msg") \
+        && echo -e "${GRN}Email: test message sent successfully.${RST}" && sent=1 \
+        || echo -e "${RED}Email: failed to send.${RST}" >&2
+    fi
+  fi
+
+  [[ $sent -eq 0 ]] && echo -e "${YLW}No notifications sent. Check your config: $GLOBAL_CONFIG${RST}"
+}
+
 # ─── Router ───────────────────────────────────────────────────────────────────
 COMMAND="${1:-help}"
 shift || true
 
 case "$COMMAND" in
-  add)    cmd_add    "$@" ;;
-  remove) cmd_remove "$@" ;;
-  status) cmd_status      ;;
-  list)   cmd_list        ;;
-  help|--help|-h) cmd_help ;;
+  add)          cmd_add        "$@" ;;
+  remove)       cmd_remove     "$@" ;;
+  status)       cmd_status          ;;
+  list)         cmd_list            ;;
+  logs)         cmd_logs       "$@" ;;
+  test-alert)   cmd_test_alert      ;;
+  help|--help|-h) cmd_help          ;;
   *)
     echo -e "${RED}[loglo] Unknown command: $COMMAND${RST}" >&2
     cmd_help
